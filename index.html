@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Template project</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <section id="controls">
+        <!-- KLEUR SELECTOR -->
+        <div class="control">
+          <label for="bg">background</label>
+          <input id="bg" type="color" value="#ffffff" />
+        </div>
+        <div class="control">
+          <label for="fg">foreground</label>
+          <input id="fg" type="color" value="#2ca06a" />
+        </div>
+
+        <!-- SLIDERS -->
+        <div class="control">
+          <label for="cellWidth">breedte</label>
+          <input id="cellWidth" type="range" min="10" max="120" step="1" value="40" />
+        </div>
+
+        <div class="control">
+          <label for="cellWidth">hoogte</label>
+          <output id="cellHeightReadout">40</output>
+        </div>
+        <div class="control">
+          <label for="margin">marge</label>
+          <input id="margin" type="range" min="0" max="10" step="1" value="6"/>
+        </div>
+
+        <div class="control">
+          <label for="canvasWidth">canvas width</label>
+          <input id="canvasWidth" type="number" min="200" max="2000" step="10" value="1200" />
+        </div>
+
+        <div class="control">
+          <label for="canvasHeight">canvas height</label>
+          <input id="canvasHeight" type="number" min="200" max="1500" step="10" value="750" />
+        </div>
+
+        <div class="control control-row">
+          <button id="undoBlob" type="button">undo</button>
+          <button id="clearBlobs" type="button">reset</button>
+        </div>
+
+        <div class="control">
+          <label>
+            <input id="showOutlines" type="checkbox" checked />toon getekende vormpjes
+          </label>
+        </div>
+
+        <div class="control">
+          <div id="totalRectCount" class="total-counter">0 Vierkantjes</div>
+        </div>
+
+        <!-- KNOPPEN -->
+        <!-- <div class="control control-row">
+          <button id="randomize">randomize</button>
+          <button id="reset">reset</button>
+        </div> -->
+
+        <!-- KEYFRAMES -->
+        <!-- <div class="control control-section">
+          <button id="addKeyframe">add keyframe</button>
+          <button id="removeKeyframe">remove keyframe</button>
+        </div>
+        <div class="control" id="keyframeNav"></div>
+        <div class="control">
+          <button id="exportScene">export scene</button>
+          <button id="importScene" type="button">import scene</button>
+          <input id="importSceneInput" type="file" accept=".json,application/json" hidden />
+        </div> -->
+
+        <!-- EXPORT -->
+        <div class="control">
+          <button id="exportPng" onclick="saveCanvas('export.png')">export PNG</button>
+          <!-- <button id="recordMp4">record MP4</button> -->
+          <button id="exportSvg" type="button">export SVG</button>
+        </div>
+      </section>
+
+      <div id="canvasWrap"></div>
+    </main>
+
+    <script src="./libs/p5.min.js"></script>
+    <script src="./libs/p5.svg.js"></script>
+    
+    <script src="./src/params.js"></script>
+    <script src="./src/transition-manager.js"></script>
+    <script src="./src/export-manager.js"></script>
+    <script src="./src/scene-manager.js"></script>
+    <script src="sketch.js"></script>
+  </body>
+</html>
