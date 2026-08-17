@@ -230,36 +230,38 @@ function drawBlob(blob, forceOutline = false, usedCellKeys = null) {
 
   push();
 
-  const isActiveDraft = blob === blobTool.activeBlob;
-  const shouldDrawOutline = forceOutline || isActiveDraft || blobTool.showOutlines;
-  if (shouldDrawOutline) {
-    noFill();
-    stroke(18);
-    strokeWeight(1.2);
-    drawingContext.setLineDash(forceOutline || isActiveDraft ? [0, 0] : [6, 6]);
-    beginShape();
-    blob.points.forEach((point) => vertex(point.x, point.y));
-    endShape(CLOSE);
-    drawingContext.setLineDash([]);
-  }
-
+  // 1. Teken eerst de gekleurde vakjes (onderlaag)
   const bounds = getBlobBounds(blob);
   const cellsToDraw = getBlobCellRects(blob, usedCellKeys);
 
   noStroke();
   fill(fillColor);
-
   cellsToDraw.forEach((cell) => {
     rect(cell.x, cell.y, cell.width, cell.height);
   });
 
-  noStroke();
-  fill(0);
-  textAlign(CENTER, CENTER);
-  textSize(12);
-  const centerX = (bounds.minX + bounds.maxX) / 2;
-  const centerY = (bounds.minY + bounds.maxY) / 2;
-  text(blob.count, centerX, centerY);
+  // 2. Teken de omtrek BBOVENOP de vakjes
+  const isActiveDraft = blob === blobTool.activeBlob;
+  const shouldDrawOutline = forceOutline || isActiveDraft || blobTool.showOutlines;
+  if (shouldDrawOutline) {
+    noFill();
+    stroke(18);
+    strokeWeight(1.5);
+    drawingContext.setLineDash(forceOutline || isActiveDraft ? [0, 0] : [6, 6]);
+    beginShape();
+    blob.points.forEach((point) => vertex(point.x, point.y));
+    endShape(isActiveDraft ? OPEN : CLOSE);
+    drawingContext.setLineDash([]);
+
+    // 3. Teken de cijfertekst BOVENOP de omtrek (groter gemaakt naar 16px)
+    noStroke();
+    fill(0);
+    textAlign(CENTER, CENTER);
+    textSize(16); // Grotere tekst
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    text(blob.count, centerX, centerY);
+  }
 
   pop();
 }
@@ -356,6 +358,7 @@ function exportBlobRectsSvg() {
   const canvasHeight = height;
   const backgroundColor = document.getElementById('bg')?.value || '#ffffff';
 
+  // 1. Cellen (Vierkantjes)[cite: 1]
   const rects = [];
   const usedCellKeys = new Set();
   blobTool.blobs.forEach((blob) => {
@@ -372,15 +375,44 @@ function exportBlobRectsSvg() {
     });
   });
 
+  // 2. Omtrekken en getallen (indien showOutlines aan staat)[cite: 1]
+  let outlinesSvg = '';
+  let textSvg = '';
+
+  if (blobTool.showOutlines) {
+    blobTool.blobs.forEach((blob) => {
+      if (!blob || !Array.isArray(blob.points) || blob.points.length < 3) return;
+
+      const pointsStr = blob.points.map((p) => `${p.x},${p.y}`).join(' ');
+      outlinesSvg += `<polygon points="${pointsStr}" fill="none" stroke="#121212" stroke-width="1.2" stroke-dasharray="6,6" />\n`;
+
+      const bounds = getBlobBounds(blob);
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+      const centerY = (bounds.minY + bounds.maxY) / 2;
+      textSvg += `<text x="${centerX}" y="${centerY}" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="central" fill="#000000">${blob.count}</text>\n`;
+    });
+  }
+
+  // 3. Schaalbalk[cite: 1]
+  const scaleX = 40;
+  const scaleY = height - 40;
+  const meterPx = Math.min(200, Math.max(20, blobTool.cellWidth * 1.5));
+  const scaleSvg = `
+    <line x1="${scaleX}" y1="${scaleY}" x2="${scaleX + meterPx}" y2="${scaleY}" stroke="#1e1e1e" stroke-width="1.25" />
+    <line x1="${scaleX}" y1="${scaleY - 6}" x2="${scaleX}" y2="${scaleY + 6}" stroke="#1e1e1e" stroke-width="1.25" />
+    <line x1="${scaleX + meterPx}" y1="${scaleY - 6}" x2="${scaleX + meterPx}" y2="${scaleY + 6}" stroke="#1e1e1e" stroke-width="1.25" />
+    <text x="${scaleX + meterPx / 2}" y="${scaleY - 12}" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#000000">1 m</text>
+    <text x="${scaleX + meterPx + 12}" y="${scaleY + 4}" font-size="11" font-family="sans-serif" text-anchor="start" fill="#000000">1 cell = 60 × 40 cm</text>
+  `;
+
+  // Samenvoegen in SVG string[cite: 1]
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}">
       <rect width="100%" height="100%" fill="${backgroundColor}" />
-      ${rects
-        .map(
-          (rect) =>
-            `<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="${rect.fill}" />`
-        )
-        .join('')}
+      ${rects.map((r) => `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" fill="${r.fill}" />`).join('\n')}
+      ${outlinesSvg}
+      ${textSvg}
+      ${scaleSvg}
     </svg>
   `;
 
@@ -465,15 +497,185 @@ function setup() {
   }
 }
 
+let draggedPointInfo = null;
+
+function getPointUnderMouse(x, y, radius = 10) {
+  // Check altijd de actieve blob waar je nu aan werkt
+  if (blobTool.activeBlob) {
+    for (let i = 0; i < blobTool.activeBlob.points.length; i++) {
+      let p = blobTool.activeBlob.points[i];
+      if (dist(x, y, p.x, p.y) <= radius) {
+        return { blob: blobTool.activeBlob, point: p, index: i, isActive: true };
+      }
+    }
+  }
+
+  // Check getekende blobs ALLEEN als showOutlines aan staat
+  if (blobTool.showOutlines) {
+    for (let blob of blobTool.blobs) {
+      if (!blob || !blob.points) continue;
+      for (let i = 0; i < blob.points.length; i++) {
+        let p = blob.points[i];
+        if (dist(x, y, p.x, p.y) <= radius) {
+          return { blob, point: p, index: i, isActive: false };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// 2. Aangepast: Zoek lijnstuk onder muis (rekening houdend met showOutlines)
+function getEdgeUnderMouse(x, y, maxDist = 8) {
+  let closestEdge = null;
+  let minD = maxDist;
+
+  // Check getekende blobs ALLEEN als showOutlines aan staat
+  if (blobTool.showOutlines) {
+    blobTool.blobs.forEach((blob) => {
+      if (!blob || !blob.points || blob.points.length < 3) return;
+      const len = blob.points.length;
+      for (let i = 0; i < len; i++) {
+        const p1 = blob.points[i];
+        const p2 = blob.points[(i + 1) % len];
+        const res = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+        if (res.d < minD) {
+          minD = res.d;
+          closestEdge = { blob, insertIndex: i + 1, point: { x: res.projX, y: res.projY } };
+        }
+      }
+    });
+  }
+
+  // Check de actieve open blob
+  if (blobTool.activeBlob && blobTool.activeBlob.points.length >= 2) {
+    const pts = blobTool.activeBlob.points;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const res = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+      if (res.d < minD) {
+        minD = res.d;
+        closestEdge = { blob: blobTool.activeBlob, insertIndex: i + 1, point: { x: res.projX, y: res.projY } };
+      }
+    }
+  }
+
+  return closestEdge;
+}
+
+// Helper: Bereken afstand van punt (px, py) tot lijnstuk (x1,y1)-(x2,y2)
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+  if (l2 === 0) return { d: dist(px, py, x1, y1), projX: x1, projY: y1 };
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * (x2 - x1);
+  const projY = y1 + t * (y2 - y1);
+  return { d: dist(px, py, projX, projY), projX, projY };
+}
+
+// 2. Zoek of de muis boven een lijnstuk/rand van een blob hangt
+function getEdgeUnderMouse(x, y, maxDist = 8) {
+  let closestEdge = null;
+  let minD = maxDist;
+
+  // Check alle reeds gemaakte (gesloten) blobs
+  blobTool.blobs.forEach((blob) => {
+    if (!blob || !blob.points || blob.points.length < 3) return;
+    const len = blob.points.length;
+    for (let i = 0; i < len; i++) {
+      const p1 = blob.points[i];
+      const p2 = blob.points[(i + 1) % len];
+      const res = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+      if (res.d < minD) {
+        minD = res.d;
+        closestEdge = { blob, insertIndex: i + 1, point: { x: res.projX, y: res.projY } };
+      }
+    }
+  });
+
+  // Check de actieve open blob
+  if (blobTool.activeBlob && blobTool.activeBlob.points.length >= 2) {
+    const pts = blobTool.activeBlob.points;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const res = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+      if (res.d < minD) {
+        minD = res.d;
+        closestEdge = { blob: blobTool.activeBlob, insertIndex: i + 1, point: { x: res.projX, y: res.projY } };
+      }
+    }
+  }
+
+  return closestEdge;
+}
+
+// Teken handles op de hoekpunten
+function drawBlobHandles(blob) {
+  if (!blob || !blob.points) return;
+
+  push();
+  stroke(30);
+  strokeWeight(1.5);
+
+  blob.points.forEach((p, idx) => {
+    // Punten vergroot (startpunt 14px, overige punten 11px)
+    if (blob === blobTool.activeBlob && idx === 0) {
+      fill('#ff3333');
+      ellipse(p.x, p.y, 14, 14);
+    } else {
+      fill(255);
+      ellipse(p.x, p.y, 11, 11);
+    }
+  });
+  pop();
+}
+
 function draw() {
   clear();
   background(typeof bg !== 'undefined' ? bg : '#ffffff');
 
   const usedCellKeys = new Set();
-  blobTool.blobs.forEach((blob) => drawBlob(blob, false, usedCellKeys));
 
+  // Teken definitieve blobs
+  blobTool.blobs.forEach((blob) => {
+    drawBlob(blob, false, usedCellKeys);
+    // Teken alleen handles als de checkbox aan staat
+    if (blobTool.showOutlines) {
+      drawBlobHandles(blob);
+    }
+  });
+
+  // Teken actieve blob + preview lijn naar muis
   if (blobTool.activeBlob) {
     drawBlob(blobTool.activeBlob, true, usedCellKeys);
+
+    if (blobTool.activeBlob.points.length > 0) {
+      const pts = blobTool.activeBlob.points;
+      const lastPt = pts[pts.length - 1];
+      const firstPt = pts[0];
+
+      push();
+      stroke(120);
+      strokeWeight(1);
+      drawingContext.setLineDash([4, 4]);
+
+      if (pts.length >= 3 && dist(mouseX, mouseY, firstPt.x, firstPt.y) < 15) {
+        stroke('#ff3333');
+        strokeWeight(2);
+        line(lastPt.x, lastPt.y, firstPt.x, firstPt.y);
+      } else {
+        line(lastPt.x, lastPt.y, mouseX, mouseY);
+      }
+
+      drawingContext.setLineDash([]);
+      pop();
+    }
+
+    // Handles van actieve blob altijd tonen tijdens het tekenen
+    drawBlobHandles(blobTool.activeBlob);
   }
 
   drawScaleBar();
@@ -511,42 +713,117 @@ function toggleCellAtPoint(x, y) {
 function mousePressed() {
   if (mouseX < 0 || mouseY < 0 || mouseX > width || mouseY > height) return;
 
-  if (toggleCellAtPoint(mouseX, mouseY)) {
+  // 1. Check direct punt aangeklikt
+  const pointHit = getPointUnderMouse(mouseX, mouseY, 10);
+  if (pointHit) {
+    // Klik op startpunt van actieve blob -> Vorm sluiten & opslaan!
+    if (pointHit.isActive && pointHit.index === 0 && blobTool.activeBlob.points.length >= 3) {
+      const finalizedBlob = createBlobFromSketch(blobTool.activeBlob.points);
+      mergeOverlappingBlobs(finalizedBlob);
+      blobTool.activeBlob = null;
+      updateTotalRectCount();
+      return;
+    }
+
+    // Anders: Bestaand punt vastpakken om te slepen
+    draggedPointInfo = pointHit;
+    return;
+  }
+
+  // 2. Check op een lijn geklikt -> Nieuw punt op die lijn toevoegen!
+  const edgeHit = getEdgeUnderMouse(mouseX, mouseY, 8);
+  if (edgeHit) {
+    edgeHit.blob.points.splice(edgeHit.insertIndex, 0, edgeHit.point);
+    ensureBlobCells(edgeHit.blob);
+    edgeHit.blob.count = countCellsInBlob(edgeHit.blob);
+
+    // Pak het nieuw gemaakte punt meteen vast om te kunnen slepen
+    draggedPointInfo = {
+      blob: edgeHit.blob,
+      point: edgeHit.blob.points[edgeHit.insertIndex],
+      index: edgeHit.insertIndex,
+      isActive: edgeHit.blob === blobTool.activeBlob,
+    };
     updateTotalRectCount();
     return;
   }
 
-  blobTool.activeBlob = {
-    points: [{ x: mouseX, y: mouseY }],
-    count: 0,
-    cells: {},
-  };
+  // 3. Klik in lege ruimte
+  if (blobTool.activeBlob) {
+    // Voeg nieuw hoekpunt toe aan de huidige vorm
+    blobTool.activeBlob.points.push({ x: mouseX, y: mouseY });
+    ensureBlobCells(blobTool.activeBlob);
+    blobTool.activeBlob.count = countCellsInBlob(blobTool.activeBlob);
+  } else {
+    // Start een splinternieuwe vector blob
+    blobTool.activeBlob = {
+      points: [{ x: mouseX, y: mouseY }],
+      count: 0,
+      cells: {},
+    };
+  }
 }
 
 function mouseDragged() {
-  if (!blobTool.activeBlob) return;
+  if (draggedPointInfo) {
+    draggedPointInfo.point.x = mouseX;
+    draggedPointInfo.point.y = mouseY;
 
-  const last = blobTool.activeBlob.points[blobTool.activeBlob.points.length - 1];
-  if (!last) return;
-
-  const distance = dist(mouseX, mouseY, last.x, last.y);
-  if (distance > 4) {
-    blobTool.activeBlob.points.push({ x: mouseX, y: mouseY });
+    ensureBlobCells(draggedPointInfo.blob);
+    draggedPointInfo.blob.count = countCellsInBlob(draggedPointInfo.blob);
+    updateTotalRectCount();
   }
-
-  blobTool.activeBlob.count = countCellsInBlob(blobTool.activeBlob);
 }
 
 function mouseReleased() {
-  if (!blobTool.activeBlob) return;
+  draggedPointInfo = null;
+}
 
-  if (blobTool.activeBlob.points.length >= 3) {
-    const finalizedBlob = createBlobFromSketch(blobTool.activeBlob.points);
-    mergeOverlappingBlobs(finalizedBlob);
+// Extra: Dubbelklik op een punt om het te verwijderen
+function doubleClicked() {
+  const hit = getPointUnderMouse(mouseX, mouseY, 10);
+  if (hit && hit.blob.points.length > 3) {
+    hit.blob.points.splice(hit.index, 1);
+    ensureBlobCells(hit.blob);
+    hit.blob.count = countCellsInBlob(hit.blob);
+    updateTotalRectCount();
+  }
+}
+
+function keyPressed(e) {
+  // Controleer op Ctrl+Z of Cmd+Z
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+    if (blobTool.activeBlob && blobTool.activeBlob.points.length > 0) {
+      // 1. Verwijder laatst geplaatste punt van actieve blob
+      blobTool.activeBlob.points.pop();
+
+      if (blobTool.activeBlob.points.length === 0) {
+        blobTool.activeBlob = null;
+      } else {
+        ensureBlobCells(blobTool.activeBlob);
+        blobTool.activeBlob.count = countCellsInBlob(blobTool.activeBlob);
+      }
+    } else {
+      // 2. Geen actieve blob -> Maak de laatst voltooide blob ongedaan
+      undoLastBlob();
+    }
+
+    updateTotalRectCount();
+    return false; // Voorkom standaard undo van de browser
   }
 
-  blobTool.activeBlob = null;
-  updateTotalRectCount();
+  // Enter = Vorm sluiten
+  if (keyCode === ENTER && blobTool.activeBlob && blobTool.activeBlob.points.length >= 3) {
+    const finalizedBlob = createBlobFromSketch(blobTool.activeBlob.points);
+    mergeOverlappingBlobs(finalizedBlob);
+    blobTool.activeBlob = null;
+    updateTotalRectCount();
+  } 
+  // Escape = Tekenen van huidige vorm annuleren
+  else if (keyCode === ESCAPE) {
+    blobTool.activeBlob = null;
+    updateTotalRectCount();
+  }
 }
 
 function config() {
