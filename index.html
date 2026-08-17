@@ -11,47 +11,47 @@
       <section id="controls">
         <!-- KLEUR SELECTOR -->
         <div class="control">
-          <label for="bg">achtergrond</label>
+          <label for="bg">Achtergrond</label>
           <input id="bg" type="color" value="#ffffff" />
         </div>
         <div class="control">
-          <label for="fg">voorgrond</label>
+          <label for="fg">Voorgrond</label>
           <input id="fg" type="color" value="#2ca06a" />
         </div>
 
         <!-- SLIDERS -->
         <div class="control">
-          <label for="cellWidth">breedte</label>
-          <input id="cellWidth" type="range" min="10" max="120" step="1" value="40" />
+          <label for="cellWidth">Breedte</label>
+          <input id="cellWidth" type="range" min="10" max="120" step="1" value="25" />
         </div>
 
         <div class="control">
-          <label for="cellWidth">hoogte</label>
+          <label for="cellWidth">Hoogte</label>
           <output id="cellHeightReadout">40</output>
         </div>
         <div class="control">
-          <label for="margin">marge</label>
+          <label for="margin">Marge</label>
           <input id="margin" type="range" min="0" max="15" step="1" value="6"/>
         </div>
 
         <div class="control">
-          <label for="canvasWidth">canvas beedte</label>
+          <label for="canvasWidth">Canvas beedte</label>
           <input id="canvasWidth" type="number" min="200" max="2000" step="10" value="1200" />
         </div>
 
         <div class="control">
-          <label for="canvasHeight">canvas hoogte</label>
+          <label for="canvasHeight">Canvas hoogte</label>
           <input id="canvasHeight" type="number" min="200" max="1500" step="10" value="750" />
         </div>
 
         <div class="control control-row">
-          <button id="undoBlob" type="button">undo</button>
-          <button id="clearBlobs" type="button">reset</button>
+          <button id="undoBlob" type="button">Undo</button>
+          <button id="clearBlobs" type="button">Reset</button>
         </div>
 
         <div class="control">
           <label>
-            <input id="showOutlines" type="checkbox" checked />toon paden
+            <input id="showOutlines" type="checkbox" checked />Toon paden
           </label>
         </div>
 
@@ -79,9 +79,9 @@
 
         <!-- EXPORT -->
         <div class="control">
-          <button id="exportPng" onclick="saveCanvas('export.png')">export PNG</button>
+          <button id="exportPng" onclick="saveCanvas('export.png')">Export PNG</button>
           <!-- <button id="recordMp4">record MP4</button> -->
-          <button id="exportSvg" type="button">export SVG</button>
+          <button id="exportSvg" type="button">Export SVG</button>
         </div>
       </section>
 

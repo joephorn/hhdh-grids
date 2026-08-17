@@ -33,14 +33,6 @@ main {
   gap: 4px;
 }
 
-.control label {
-  font-weight: 500;
-  color: #4a5568;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
 /* Kleurknoppen, checkboxes en losse rijen netjes naast elkaar uitlijnen */
 .control:has(input[type='color']),
 .control:has(output) {
