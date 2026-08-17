@@ -54,6 +54,11 @@ main {
   border-radius: 5px;
 }
 
+#canvasWidthOut,
+#canvasHeightOut {
+  display: none;
+}
+
 button,
 input,
 select,
@@ -91,5 +96,5 @@ button:hover {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  background-color: rgb(201, 201, 201);
+  background-color: rgb(235, 235, 235);
 }
