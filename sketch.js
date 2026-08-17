@@ -69,7 +69,7 @@ function refreshBlobCounts() {
 function updateTotalRectCount() {
   const totalEl = document.getElementById('totalRectCount');
   if (!totalEl) return;
-  totalEl.textContent = `${getTotalRectCount()} Vierkantjes`;
+  totalEl.textContent = `${getTotalRectCount()} VIERKANTJES`;
 }
 
 function getCellKey(x, y) {

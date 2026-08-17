@@ -22,7 +22,6 @@ main {
   gap: 14px;
   padding: 16px;
   background-color: #fafafa;
-  border-right: 1px solid #e2e8f0;
   box-sizing: border-box;
   align-self: stretch;
 }
@@ -60,14 +59,14 @@ input[type='range'] {
 input[type='number'] {
   padding: 6px 8px;
   border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border-radius: 5px;
   background: #ffffff;
 }
 
 input[type='color'] {
   -webkit-appearance: none;
   border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border-radius: 5px;
   width: 32px;
   height: 28px;
   padding: 2px;
@@ -124,17 +123,16 @@ input[type='color']::-webkit-color-swatch {
 /* Teller visueel accentueren */
 .total-counter {
   padding: 8px 12px;
-  background: #edf2f7;
+  background: #000000;
   border-radius: 6px;
   font-weight: 600;
-  color: #2d3748;
+  color: #ffffff;
   text-align: center;
 }
 
 .control-section {
   margin-top: 12px;
   padding-top: 16px;
-  border-top: 1px solid #e0e0e0;
 }
 
 .keyframe-nav {
@@ -145,8 +143,6 @@ input[type='color']::-webkit-color-swatch {
 .keyframe-nav.is-active {
   color: #000000;
   background: #ffffff;
-  border: 1px solid #000000;
-  border-radius: 5px;
 }
 
 #canvasWidthOut,
@@ -182,7 +178,7 @@ button:hover {
 .total-counter {
   padding-top: 6px;
   font-weight: 600;
-  color: #1c1c1c;
+  color: #ffffff;
 }
 
 #canvasWrap {
