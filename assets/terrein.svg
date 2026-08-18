@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1031.391" height="757.365" viewBox="0 0 1031.391 757.365">
+  <g style="isolation: isolate;">
+    <g id="b" data-name="Layer 2">
+      <g id="c" data-name="Layer 1">
+        <text transform="translate(731.261 108.717)" style="font-family: MyriadPro-Regular, &apos;Myriad Pro&apos;; font-size: 5.747px;"><tspan x="0" y="0" style="letter-spacing: .017em;">k</tspan><tspan x="2.793" y="0" style="letter-spacing: -.005em;">ra</tspan><tspan x="7.391" y="0">tje: 60x40 cm</tspan></text>
+        <rect x="717.698" y="105.881" width="2.269" height="3.403" transform="translate(826.416 -611.25) rotate(90)" style="fill: #2fac66; stroke-width: 0px;"/>
+      </g>
+      <g id="d" data-name="info">
+        <path d="m520.653,218.116c284.511,119.962,365.502,155.452,297.255,260.098-68.247,104.646-546.101,357.155-607.209,147.618-63.778-218.69-107.112-423.64-110.903-454.731-2.028-16.633-21.583-96.338,66.101-76.346,84.122,19.18,260.256,83.515,354.757,123.361Z" style="fill: none; stroke: #1d1d1b; stroke-dasharray: 0 0 6 6; stroke-miterlimit: 10; stroke-width: .25px;"/>
+        <polygon points="280.716 555.128 291.17 603.946 361.073 586.733 351.079 540.061 280.716 555.128" style="fill: #ededed; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .25px;"/>
+        <polygon points="351.079 540.061 361.073 586.733 499.261 552.943 481.38 474.264 441.846 483.213 481.38 474.264 454.375 357.261 371.16 373.4 378.787 403.431 421.593 393.741 448.155 511.083 437.732 521.506 351.079 540.061" style="fill: #ededed; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .25px;"/>
+        <polygon points="304.924 234.708 346.448 226.639 333.335 159.058 309.127 163.158 306.605 148.972 218.096 162.048 220.899 177.345 241.714 172.507 293.493 168.472 304.924 234.708" style="fill: #ededed; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .25px;"/>
+        <polygon points="577.817 404.651 560.909 404.651 552.455 419.294 560.909 433.937 577.817 433.937 586.271 419.294 577.817 404.651" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <polygon points="769.893 409.659 758.767 409.659 753.204 419.294 758.767 428.93 769.893 428.93 775.456 419.294 769.893 409.659" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <line x1="560.909" y1="433.937" x2="577.817" y2="404.651" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <line x1="577.817" y1="433.937" x2="560.909" y2="404.651" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <line x1="552.455" y1="419.294" x2="586.271" y2="419.294" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <circle cx="613.24" cy="433.937" r="8.061" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <path d="m.223,16.08s84.728,166.43,127.092,382.983c27.114,138.599,56.738,250.965,0,334.936" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <g>
+          <circle cx="361.073" cy="273.098" r="31.017" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="407.22" cy="285.394" r="21.939" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="361.073" cy="331.54" r="31.017" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="392.09" cy="357.261" r="21.939" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="168.166" cy="138.633" r="32.151" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="471.522" cy="189.697" r="12.293" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="596.345" cy="239.247" r="10.591" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="179.513" cy="692.391" r="20.804" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="873.981" cy="402.756" r="6.903" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="840.703" cy="335.323" r="9.074" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+          <circle cx="792.278" cy="313.384" r="6.809" style="fill: #cfdfd6; mix-blend-mode: multiply; stroke-width: 0px;"/>
+        </g>
+        <path d="m88.733.193s70.953,58.251,182.317,97.589c19.816,7,27.486,8.7,59.007,20.487.057.021,8.322-11.787,8.322-11.787,68.924,23.537,152.4,58.637,237.531,92.179,15.419,6.075,33.662,14.011,53.633,23.079,0,0-5.782,10.723.537,14.043,18.793,9.872,91.592,45.828,91.592,45.828l7.314-13.091h0c76.737,36.649,154.102,73.591,189.629,82.689,62.033,15.887,112.719,27.991,112.719,27.991" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <polygon points="179.513 186.965 190.945 238.407 196.73 237.224 198.342 245.87 194.643 246.812 264.578 544.369 280.716 555.128 437.732 521.506 448.155 511.083 421.593 393.741 371.16 405.509 373.177 413.579 356.702 417.277 349.978 387.353 338.883 389.371 304.924 234.708 293.493 168.472 241.714 172.507 179.513 186.965" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+        <g>
+          <polyline points="64.736 727.305 64.736 735.951 8.043 735.951 8.043 727.305" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+          <text transform="translate(9.257 751.608)" style="font-family: Graphik-Regular, Graphik; font-size: 12px;"><tspan x="0" y="0">10 METER</tspan></text>
+          <text transform="translate(25.165 727.305)" style="font-family: Graphik-Regular, Graphik; font-size: 7px;"><tspan x="0" y="0" style="letter-spacing: -.005em;">2</tspan><tspan x="3.843" y="0" style="letter-spacing: 0em;">0 MM</tspan></text>
+        </g>
+        <path d="m699.661,368.613c-7.174,19.985-71.947,30.65-109.409-2.332-49.012-43.151-84.913-38.78-82.186-61.022,2.584-21.076,30.339-37.405,85.165-17.767,22.444,8.039,34.139,18.243,68.844,35.701,31.015,15.602,42.405,31.994,37.586,45.421Z" style="fill: none; stroke: #1d1d1b; stroke-dasharray: 0 0 6 6; stroke-miterlimit: 10; stroke-width: .25px;"/>
+        <path d="m268.897,757.119s227.01-40.338,392.624-128.605c91.789-48.92,172.738-128.015,212.577-212.776,21.939-46.677,31.017-21.957,139.953,5.008" style="fill: none; stroke: #1d1d1b; stroke-miterlimit: 10; stroke-width: .5px;"/>
+      </g>
+    </g>
+  </g>
+</svg>

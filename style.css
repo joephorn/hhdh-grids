@@ -33,6 +33,43 @@ main {
   gap: 4px;
 }
 
+#blobTransformControls,
+#drawTransformControls {
+  flex-direction: column;
+}
+
+#blobTransformControls[hidden],
+#drawTransformControls[hidden] {
+  display: none;
+}
+
+.terrain-section-title {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#blobTransformControls > .control,
+#drawTransformControls > .control {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+#blobTransformControls > .control label,
+#drawTransformControls > .control label {
+  white-space: nowrap;
+}
+
+#blobTransformControls > .control input[type='range'],
+#drawTransformControls > .control input[type='range'] {
+  min-width: 0;
+}
+
 /* Kleurknoppen, checkboxes en losse rijen netjes naast elkaar uitlijnen */
 .control:has(input[type='color']),
 .control:has(output) {
@@ -75,8 +112,9 @@ input[type='color']::-webkit-color-swatch {
   border-radius: 2px;
 }
 
-/* Checkbox container */
-.control label:has(input[type='checkbox']) {
+/* Modus-selector */
+.control label:has(input[type='checkbox']),
+.control label:has(input[type='radio']) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -180,4 +218,24 @@ button:hover {
   justify-content: center;
   min-width: 0;
   background-color: rgb(235, 235, 235);
+}
+
+#sceneLayer {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background-color: #ffffff;
+}
+
+#sceneLayer canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+#terrainLayer {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  transform-origin: center;
 }

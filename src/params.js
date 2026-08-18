@@ -20,7 +20,7 @@
 
   function ensureOutputElement(key, inputEl) {
     if (!key || !inputEl || typeof document === 'undefined') return null;
-    if (key === 'canvasWidth' || key === 'canvasHeight' || inputEl.type === 'checkbox' || inputEl.type === 'color') return null;
+    if (key === 'canvasWidth' || key === 'canvasHeight' || inputEl.type === 'checkbox' || inputEl.type === 'radio' || inputEl.type === 'color') return null;
     const existing = document.getElementById(`${key}Out`);
     if (existing) return existing;
 
