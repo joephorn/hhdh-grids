@@ -353,14 +353,18 @@ function drawGridTemplate() {
   if (blobTool.showTerrain || !blobTool.showOutlines) return;
 
   const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics();
-  const startX = originX + Math.floor((0 - originX) / stepX) * stepX;
-  const startY = originY + Math.floor((0 - originY) / stepY) * stepY;
+  const topLeft = getScenePoint(0, 0);
+  const bottomRight = getScenePoint(width, height);
+  const startX = originX + Math.floor((topLeft.x - originX) / stepX) * stepX;
+  const startY = originY + Math.floor((topLeft.y - originY) / stepY) * stepY;
+  const endX = originX + Math.ceil((bottomRight.x - originX) / stepX) * stepX;
+  const endY = originY + Math.ceil((bottomRight.y - originY) / stepY) * stepY;
 
   push();
   noStroke();
   fill(238);
-  for (let x = startX; x < width; x += stepX) {
-    for (let y = startY; y < height; y += stepY) {
+  for (let x = startX; x <= endX; x += stepX) {
+    for (let y = startY; y <= endY; y += stepY) {
       rect(x, y, cellW, cellH);
     }
   }
@@ -898,11 +902,11 @@ function draw() {
   clear();
   if (!blobTool.showTerrain) {
     background(typeof bg !== 'undefined' ? bg : '#ffffff');
-    drawGridTemplate();
   }
 
   push();
   applySceneZoom();
+  drawGridTemplate();
   const sceneMouse = getScenePoint(mouseX, mouseY);
   const blobMouse = getBlobPoint(sceneMouse.x, sceneMouse.y);
 
@@ -951,7 +955,9 @@ function draw() {
   }
 
   pop();
-  drawScaleBar();
+  if (!blobTool.showTerrain) {
+    drawScaleBar();
+  }
   pop();
   updateTotalRectCount();
 }
