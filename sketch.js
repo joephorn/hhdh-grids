@@ -180,7 +180,10 @@ function getRenderedBlobScale() {
 function getGridMetrics(blob = null) {
   const reference = getTerrainReferenceMetrics();
   const blobScale = getBlobScale();
-  const origin = getBlobPoint(reference.originX, reference.originY);
+  // Keep the grid fixed in blob-local coordinates. The shared blob transform
+  // then rotates the outlines and their existing cells as one whole, instead
+  // of recalculating the grid layout for every rotation angle.
+  const origin = getBlobOutlinePoint(reference.originX, reference.originY);
   const cellW = reference.cellW / blobScale;
   const cellH = reference.cellH / blobScale;
   const gap = 0;
