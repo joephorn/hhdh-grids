@@ -1,6 +1,6 @@
 (function () {
   const config = {
-    excludedParams: ['bg', 'fg'],
+    excludedParams: ['fg'],
   };
   const registry = new Map();
   const values = {};
@@ -18,6 +18,11 @@
     return String(value);
   }
 
+  function formatParamValue(key, value) {
+    if (key === 'blobScale' && Number.isFinite(value)) return `×${value.toFixed(1)}`;
+    return formatValue(value);
+  }
+
   function ensureOutputElement(key, inputEl) {
     if (!key || !inputEl || typeof document === 'undefined') return null;
     if (key === 'canvasWidth' || key === 'canvasHeight' || inputEl.type === 'checkbox' || inputEl.type === 'radio' || inputEl.type === 'color') return null;
@@ -33,7 +38,7 @@
 
   function updateOutput(param, value) {
     if (!param.outputEl) return;
-    const text = formatValue(value);
+    const text = formatParamValue(param.key, value);
     param.outputEl.textContent = text;
     param.outputEl.value = text;
   }

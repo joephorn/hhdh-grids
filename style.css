@@ -210,3 +210,13 @@ button:hover {
   pointer-events: none;
   transform-origin: center;
 }
+
+#scaleLayer {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  z-index: 2;
+  width: 160px;
+  height: auto;
+  pointer-events: none;
+}

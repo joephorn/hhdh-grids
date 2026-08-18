@@ -10,15 +10,19 @@ const blobTool = {
   zoom: 1,
   viewportX: 0,
   viewportY: 0,
+  terrainX: 0,
+  terrainY: 0,
   rotation: 0,
   rotationCenter: null,
 };
 
 let sceneLayer;
 let terrainLayer;
+let scaleLayer;
 let draggedPointInfo = null;
 let draggedBlobInfo = null;
 let viewportDragInfo = null;
+let pendingCanvasInteraction = null;
 
 const terrainGridReference = {
   x: 720.535,
@@ -144,8 +148,8 @@ function syncSceneLayer() {
 
   terrainLayer.style.width = `${displayWidth}px`;
   terrainLayer.style.height = `${displayHeight}px`;
-  terrainLayer.style.left = `${(width - displayWidth) / 2 + blobTool.viewportX}px`;
-  terrainLayer.style.top = `${(height - displayHeight) / 2 + blobTool.viewportY}px`;
+  terrainLayer.style.left = `${(width - displayWidth) / 2 + blobTool.viewportX + blobTool.terrainX * blobTool.zoom}px`;
+  terrainLayer.style.top = `${(height - displayHeight) / 2 + blobTool.viewportY + blobTool.terrainY * blobTool.zoom}px`;
   terrainLayer.style.transform = `scale(${blobTool.zoom})`;
   terrainLayer.hidden = false;
 }
@@ -158,13 +162,13 @@ function getTerrainReferenceMetrics() {
   return {
     cellW: terrainGridReference.width * scaleFactor,
     cellH: terrainGridReference.height * scaleFactor,
-    originX: (width - terrainWidth) / 2 + terrainGridReference.x * scaleFactor,
-    originY: (height - terrainHeight) / 2 + terrainGridReference.y * scaleFactor,
+    originX: (width - terrainWidth) / 2 + terrainGridReference.x * scaleFactor + blobTool.terrainX,
+    originY: (height - terrainHeight) / 2 + terrainGridReference.y * scaleFactor + blobTool.terrainY,
   };
 }
 
 function getBlobScale() {
-  return getTerrainReferenceMetrics().cellW / blobTool.cellWidth;
+  return blobTool.scale;
 }
 
 function getRenderedBlobScale() {
@@ -177,7 +181,8 @@ function getGridMetrics() {
   const origin = getBlobPoint(reference.originX, reference.originY);
   const cellW = reference.cellW / blobScale;
   const cellH = reference.cellH / blobScale;
-  const gap = Math.max(0, blobTool.margin);
+  // De marge is een visuele afstand en mag niet meegroeien met de blob-schaal.
+  const gap = Math.max(0, blobTool.margin) / blobScale;
 
   return { cellW, cellH, gap, originX: origin.x, originY: origin.y, stepX: cellW + gap, stepY: cellH + gap };
 }
@@ -256,11 +261,11 @@ function refreshBlobCounts() {
 function updateTotalRectCount() {
   const totalEl = document.getElementById('totalRectCount');
   if (!totalEl) return;
-  totalEl.textContent = `${getTotalRectCount()} VIERKANTJES`;
+  totalEl.textContent = `${getTotalRectCount()} Kratjes`;
 }
 
 function getCellKey(x, y) {
-  return `${Math.round(x)}|${Math.round(y)}`;
+  return `${x.toFixed(4)}|${y.toFixed(4)}`;
 }
 
 function ensureBlobCells(blob) {
@@ -287,20 +292,14 @@ function ensureBlobCells(blob) {
   blob.cells = nextCells;
 }
 
-function updateCellSizeFromControls() {
-  const cellWidthInput = document.getElementById('cellWidth');
+function updateBlobScaleFromControls() {
+  const blobScaleInput = document.getElementById('blobScale');
   const marginInput = document.getElementById('margin');
-  const heightReadout = document.getElementById('cellHeightReadout');
 
-  const sliderValue = Number(cellWidthInput?.value ?? 60) || 60;
-  blobTool.scale = sliderValue / 60;
-  blobTool.cellWidth = 60 * blobTool.scale;
-  blobTool.cellHeight = 40 * blobTool.scale;
+  blobTool.scale = Number(blobScaleInput?.value ?? 1) || 1;
+  blobTool.cellWidth = 60;
+  blobTool.cellHeight = 40;
   blobTool.margin = Number(marginInput?.value ?? 20) || 0;
-
-  if (heightReadout) {
-    heightReadout.textContent = String(getTerrainReferenceMetrics().cellH.toFixed(2));
-  }
 
   refreshBlobCounts();
   updateTotalRectCount();
@@ -390,7 +389,7 @@ function drawMeterGrid() {
   const endY = reference.originY + Math.ceil((bottomRight.y - reference.originY) / meterHeight) * meterHeight;
 
   push();
-  stroke(30, 90);
+  stroke(0, 13);
   strokeWeight(1 / blobTool.zoom);
   for (let x = startX; x <= endX; x += meterWidth) {
     line(x, topLeft.y, x, bottomRight.y);
@@ -541,78 +540,124 @@ function undoLastBlob() {
 // Export
 // -----------------------------------------------------------------------------
 
-function exportBlobRectsSvg() {
-  const canvasWidth = width;
-  const canvasHeight = height;
-  const backgroundColor = document.getElementById('bg')?.value || '#ffffff';
-
-  // Cellen
-  const rects = [];
-  const usedCellKeys = new Set();
-  blobTool.blobs.forEach((blob) => {
-    if (!blob || !Array.isArray(blob.points) || blob.points.length < 3) return;
-
-    getBlobCellRects(blob, usedCellKeys).forEach((cell) => {
-      rects.push({
-        x: cell.x,
-        y: cell.y,
-        width: cell.width,
-        height: cell.height,
-        fill: '#2ca06a',
-      });
-    });
-  });
-
-  // Omtrekken en aantallen
-  let outlinesSvg = '';
-  let textSvg = '';
-
-  if (blobTool.showBlobGuides) {
-    blobTool.blobs.forEach((blob) => {
-      if (!blob || !Array.isArray(blob.points) || blob.points.length < 3) return;
-
-      const pointsStr = blob.points.map((p) => `${p.x},${p.y}`).join(' ');
-      outlinesSvg += `<polygon points="${pointsStr}" fill="none" stroke="#121212" stroke-width="1.2" stroke-dasharray="6,6" />\n`;
-
-      const bounds = getBlobBounds(blob);
-      const centerX = (bounds.minX + bounds.maxX) / 2;
-      const centerY = (bounds.minY + bounds.maxY) / 2;
-      textSvg += `<text x="${centerX}" y="${centerY}" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="central" fill="#000000">${blob.count}</text>\n`;
-    });
-  }
-
-  // Schaalbalk
-  const scaleX = 40;
-  const scaleY = height - 40;
-  const cellWidth = getTerrainReferenceMetrics().cellW;
-  const meterPx = Math.min(200, Math.max(20, cellWidth * 1.5));
-  const scaleSvg = `
-    <line x1="${scaleX}" y1="${scaleY}" x2="${scaleX + meterPx}" y2="${scaleY}" stroke="#1e1e1e" stroke-width="1.25" />
-    <line x1="${scaleX}" y1="${scaleY - 6}" x2="${scaleX}" y2="${scaleY + 6}" stroke="#1e1e1e" stroke-width="1.25" />
-    <line x1="${scaleX + meterPx}" y1="${scaleY - 6}" x2="${scaleX + meterPx}" y2="${scaleY + 6}" stroke="#1e1e1e" stroke-width="1.25" />
-    <text x="${scaleX + meterPx / 2}" y="${scaleY - 12}" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#000000">1 m</text>
-    <text x="${scaleX + meterPx + 12}" y="${scaleY + 4}" font-size="11" font-family="sans-serif" text-anchor="start" fill="#000000">1 cell = 60 × 40 cm</text>
-  `;
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}">
-      <rect width="100%" height="100%" fill="${backgroundColor}" />
-      ${rects.map((r) => `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" fill="${r.fill}" />`).join('\n')}
-      ${outlinesSvg}
-      ${textSvg}
-      ${scaleSvg}
-    </svg>
-  `;
-
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+function downloadExportBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'blob-grid-export.svg';
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function loadSvgAsset(url) {
+  const response = await fetch(url);
+  const source = await response.text();
+  const documentNode = new DOMParser().parseFromString(source, 'image/svg+xml');
+  const root = documentNode.documentElement;
+  const serializer = new XMLSerializer();
+  return {
+    viewBox: root.getAttribute('viewBox') || `0 0 ${root.getAttribute('width')} ${root.getAttribute('height')}`,
+    content: Array.from(root.childNodes).map((node) => serializer.serializeToString(node)).join(''),
+  };
+}
+
+async function buildFullCanvasSvg() {
+  if (!sceneLayer || !terrainLayer || !scaleLayer) return null;
+
+  const sceneRect = sceneLayer.getBoundingClientRect();
+  const terrainRect = terrainLayer.getBoundingClientRect();
+  const scaleRect = scaleLayer.getBoundingClientRect();
+  const [terrainAsset, scaleAsset] = await Promise.all([
+    loadSvgAsset(terrainLayer.src),
+    loadSvgAsset(scaleLayer.src),
+  ]);
+
+  const sceneTransform = `translate(${width / 2 + blobTool.viewportX} ${height / 2 + blobTool.viewportY}) scale(${blobTool.zoom}) translate(${-width / 2} ${-height / 2})`;
+  const rotationCenter = getBlobTransformCenter();
+  const blobTransform = `translate(${width / 2} ${height / 2}) scale(${getBlobScale()}) translate(${-width / 2} ${-height / 2}) translate(${rotationCenter.x} ${rotationCenter.y}) rotate(${blobTool.rotation}) translate(${-rotationCenter.x} ${-rotationCenter.y})`;
+
+  let backgroundGridSvg = '';
+  if (blobTool.showMeterGrid) {
+    const reference = getTerrainReferenceMetrics();
+    const meterWidth = reference.cellW / 0.6;
+    const meterHeight = reference.cellH / 0.4;
+    const topLeft = getScenePoint(0, 0);
+    const bottomRight = getScenePoint(width, height);
+    const startX = reference.originX + Math.floor((topLeft.x - reference.originX) / meterWidth) * meterWidth;
+    const startY = reference.originY + Math.floor((topLeft.y - reference.originY) / meterHeight) * meterHeight;
+    const endX = reference.originX + Math.ceil((bottomRight.x - reference.originX) / meterWidth) * meterWidth;
+    const endY = reference.originY + Math.ceil((bottomRight.y - reference.originY) / meterHeight) * meterHeight;
+    for (let x = startX; x <= endX; x += meterWidth) {
+      backgroundGridSvg += `<line x1="${x}" y1="${topLeft.y}" x2="${x}" y2="${bottomRight.y}" />`;
+    }
+    for (let y = startY; y <= endY; y += meterHeight) {
+      backgroundGridSvg += `<line x1="${topLeft.x}" y1="${y}" x2="${bottomRight.x}" y2="${y}" />`;
+    }
+  }
+
+  const foregroundColor = document.getElementById('fg')?.value || '#2ca06a';
+  const usedCellKeys = new Set();
+  let cellsSvg = '';
+  let guidesSvg = '';
+  blobTool.blobs.forEach((blob) => {
+    if (!blob?.points || blob.points.length < 3) return;
+    getBlobCellRects(blob, usedCellKeys).forEach((cell) => {
+      cellsSvg += `<rect x="${cell.x}" y="${cell.y}" width="${cell.width}" height="${cell.height}" fill="${foregroundColor}" />`;
+    });
+    if (!blobTool.showBlobGuides) return;
+    const points = blob.points.map((point) => `${point.x},${point.y}`).join(' ');
+    const bounds = getBlobBounds(blob);
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    const interactionScale = getRenderedBlobScale();
+    guidesSvg += `<polygon points="${points}" fill="none" stroke="#121212" stroke-width="${1.5 / interactionScale}" stroke-dasharray="${6 / interactionScale},${6 / interactionScale}" />`;
+    guidesSvg += `<text x="${centerX}" y="${centerY}" font-size="${16 / interactionScale}" font-family="sans-serif" text-anchor="middle" dominant-baseline="central" fill="#000000">${blob.count}</text>`;
+  });
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <rect width="100%" height="100%" fill="#ffffff" />
+    <g id="terrain">
+      <svg x="${terrainRect.left - sceneRect.left}" y="${terrainRect.top - sceneRect.top}" width="${terrainRect.width}" height="${terrainRect.height}" viewBox="${terrainAsset.viewBox}">${terrainAsset.content}</svg>
+    </g>
+    <g id="scene" transform="${sceneTransform}">
+      <g id="background-grid" fill="none" stroke="#000000" stroke-opacity="0.05" stroke-width="${1 / blobTool.zoom}">${backgroundGridSvg}</g>
+      <g id="blobs" transform="${blobTransform}">
+        <g id="blob-grid">${cellsSvg}</g>
+        <g id="blob-guides">${guidesSvg}</g>
+      </g>
+    </g>
+    <g id="scale">
+      <svg x="${scaleRect.left - sceneRect.left}" y="${scaleRect.top - sceneRect.top}" width="${scaleRect.width}" height="${scaleRect.height}" viewBox="${scaleAsset.viewBox}">${scaleAsset.content}</svg>
+    </g>
+  </svg>`;
+}
+
+async function exportFullCanvasSvg() {
+  const svg = await buildFullCanvasSvg();
+  if (!svg) return;
+  downloadExportBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), 'canvas-export.svg');
+}
+
+async function exportFullCanvasPng() {
+  const svg = await buildFullCanvasSvg();
+  if (!svg) return;
+
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  const image = new Image();
+  image.onload = () => {
+    const output = document.createElement('canvas');
+    output.width = width;
+    output.height = height;
+    output.getContext('2d').drawImage(image, 0, 0);
+    URL.revokeObjectURL(svgUrl);
+    output.toBlob((blob) => {
+      if (blob) downloadExportBlob(blob, 'canvas-export.png');
+    }, 'image/png');
+  };
+  image.onerror = () => URL.revokeObjectURL(svgUrl);
+  image.src = svgUrl;
 }
 
 function resizeCanvasFromInputs() {
@@ -645,6 +690,12 @@ function createSceneLayers() {
   terrainLayer.alt = '';
   terrainLayer.addEventListener('load', syncSceneLayer);
   sceneLayer.appendChild(terrainLayer);
+
+  scaleLayer = document.createElement('img');
+  scaleLayer.id = 'scaleLayer';
+  scaleLayer.src = 'assets/schaal.svg';
+  scaleLayer.alt = 'Kratje: 60 × 40 cm';
+  sceneLayer.appendChild(scaleLayer);
 }
 
 function bindControls() {
@@ -654,12 +705,13 @@ function bindControls() {
     newBlob: document.getElementById('newBlob'),
     clearBlobs: document.getElementById('clearBlobs'),
     undoBlob: document.getElementById('undoBlob'),
-    cellWidth: document.getElementById('cellWidth'),
+    blobScale: document.getElementById('blobScale'),
     margin: document.getElementById('margin'),
     zoom: document.getElementById('zoom'),
     showMeterGrid: document.getElementById('showMeterGrid'),
     showBlobGuides: document.getElementById('showBlobGuides'),
     blobRotation: document.getElementById('blobRotation'),
+    exportPng: document.getElementById('exportPng'),
     exportSvg: document.getElementById('exportSvg'),
   };
 
@@ -669,11 +721,12 @@ function bindControls() {
   controls.newBlob?.addEventListener('click', () => addBlobAt(width * 0.5, height * 0.5));
   controls.clearBlobs?.addEventListener('click', clearBlobs);
   controls.undoBlob?.addEventListener('click', undoLastBlob);
-  controls.cellWidth?.addEventListener('input', updateCellSizeFromControls);
-  controls.margin?.addEventListener('input', updateCellSizeFromControls);
+  controls.blobScale?.addEventListener('input', updateBlobScaleFromControls);
+  controls.margin?.addEventListener('input', updateBlobScaleFromControls);
   controls.canvasWidth?.addEventListener('change', resizeCanvasFromInputs);
   controls.canvasHeight?.addEventListener('change', resizeCanvasFromInputs);
-  controls.exportSvg?.addEventListener('click', exportBlobRectsSvg);
+  controls.exportPng?.addEventListener('click', exportFullCanvasPng);
+  controls.exportSvg?.addEventListener('click', exportFullCanvasSvg);
 
   controls.zoom?.addEventListener('input', (event) => {
     setZoomAroundPoint(Number(event.target.value) || 1, width / 2, height / 2);
@@ -702,7 +755,7 @@ function setup() {
   frameRate(30);
 
   window.blobTool = blobTool;
-  updateCellSizeFromControls();
+  updateBlobScaleFromControls();
   config();
   bindControls();
 }
@@ -956,15 +1009,28 @@ function mousePressed(event) {
     return;
   }
 
-  // 3. Klik in lege ruimte
+  // Stel het plaatsen van een punt uit totdat duidelijk is of dit een klik of sleep is.
+  pendingCanvasInteraction = {
+    startX: mouseX,
+    startY: mouseY,
+    lastX: mouseX,
+    lastY: mouseY,
+    dragged: false,
+    blobX: blobMouse.x,
+    blobY: blobMouse.y,
+  };
+}
+
+function commitCanvasClick(interaction) {
+  if (!interaction) return;
   if (blobTool.activeBlob) {
     // Voeg nieuw hoekpunt toe aan de huidige vorm
-    blobTool.activeBlob.points.push({ x: blobMouse.x, y: blobMouse.y });
+    blobTool.activeBlob.points.push({ x: interaction.blobX, y: interaction.blobY });
     updateBlobCellsAndCount(blobTool.activeBlob);
   } else {
     // Start een splinternieuwe vector blob
     blobTool.activeBlob = {
-      points: [{ x: blobMouse.x, y: blobMouse.y }],
+      points: [{ x: interaction.blobX, y: interaction.blobY }],
       count: 0,
       cells: {},
     };
@@ -978,6 +1044,19 @@ function mouseDragged(event) {
     viewportDragInfo = { x: mouseX, y: mouseY };
     syncSceneLayer();
     return false;
+  }
+
+  if (pendingCanvasInteraction) {
+    const moved = dist(mouseX, mouseY, pendingCanvasInteraction.startX, pendingCanvasInteraction.startY);
+    if (moved >= 4) pendingCanvasInteraction.dragged = true;
+    if (pendingCanvasInteraction.dragged) {
+      blobTool.viewportX += mouseX - pendingCanvasInteraction.lastX;
+      blobTool.viewportY += mouseY - pendingCanvasInteraction.lastY;
+      pendingCanvasInteraction.lastX = mouseX;
+      pendingCanvasInteraction.lastY = mouseY;
+      syncSceneLayer();
+      return false;
+    }
   }
 
   if (draggedPointInfo) {
@@ -1009,6 +1088,10 @@ function mouseDragged(event) {
 }
 
 function mouseReleased() {
+  if (pendingCanvasInteraction && !pendingCanvasInteraction.dragged) {
+    commitCanvasClick(pendingCanvasInteraction);
+  }
+  pendingCanvasInteraction = null;
   draggedPointInfo = null;
   draggedBlobInfo = null;
   viewportDragInfo = null;
@@ -1034,6 +1117,19 @@ function doubleClicked() {
 }
 
 function keyPressed(e) {
+  const target = e?.target;
+  const isEditing = target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName);
+
+  if (!isEditing && (e.key === '+' || e.key === '=')) {
+    setZoomAroundPoint(blobTool.zoom * 1.1, width / 2, height / 2);
+    return false;
+  }
+
+  if (!isEditing && (e.key === '-' || e.key === '_')) {
+    setZoomAroundPoint(blobTool.zoom / 1.1, width / 2, height / 2);
+    return false;
+  }
+
   // Controleer op Ctrl+Z of Cmd+Z
   if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
     if (blobTool.activeBlob && blobTool.activeBlob.points.length > 0) {

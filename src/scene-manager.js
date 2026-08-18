@@ -226,20 +226,6 @@
         const key = event.key;
         if (!key) return;
 
-        if (key === '+' || key === '=') {
-          addKeyframe();
-          updateUI();
-          event.preventDefault();
-          return;
-        }
-
-        if (key === '-' || key === '_') {
-          removeKeyframe();
-          updateUI();
-          event.preventDefault();
-          return;
-        }
-
         if (key === 'r' || key === 'R') {
           if (window.PARAMS && typeof window.PARAMS.randomize === 'function') {
             window.PARAMS.randomize();
