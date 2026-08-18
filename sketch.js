@@ -4,7 +4,7 @@ const blobTool = {
   scale: 1,
   cellWidth: 60,
   cellHeight: 40,
-  margin: 20,
+  margin: 0,
   showMeterGrid: true,
   showBlobGuides: true,
   zoom: 1,
@@ -37,6 +37,8 @@ const CANVAS_DEFAULTS = {
   width: 1200,
   height: 750,
 };
+
+const INTERNAL_CELL_PADDING = 0.3;
 
 // -----------------------------------------------------------------------------
 // Coordinate systems and transforms
@@ -175,20 +177,29 @@ function getRenderedBlobScale() {
   return blobTool.zoom * getBlobScale();
 }
 
-function getGridMetrics() {
+function getGridMetrics(blob = null) {
   const reference = getTerrainReferenceMetrics();
   const blobScale = getBlobScale();
   const origin = getBlobPoint(reference.originX, reference.originY);
   const cellW = reference.cellW / blobScale;
   const cellH = reference.cellH / blobScale;
-  // De marge is een visuele afstand en mag niet meegroeien met de blob-schaal.
-  const gap = Math.max(0, blobTool.margin) / blobScale;
+  const gap = 0;
+  const offsetX = blob?.gridOffsetX || 0;
+  const offsetY = blob?.gridOffsetY || 0;
 
-  return { cellW, cellH, gap, originX: origin.x, originY: origin.y, stepX: cellW + gap, stepY: cellH + gap };
+  return {
+    cellW,
+    cellH,
+    gap,
+    originX: origin.x + offsetX,
+    originY: origin.y + offsetY,
+    stepX: cellW,
+    stepY: cellH,
+  };
 }
 
-function getGridBounds(bounds) {
-  const { stepX, stepY, originX, originY } = getGridMetrics();
+function getGridBounds(bounds, blob = null) {
+  const { stepX, stepY, originX, originY } = getGridMetrics(blob);
 
   return {
     startX: originX + Math.floor((bounds.minX - originX) / stepX) * stepX,
@@ -274,8 +285,8 @@ function ensureBlobCells(blob) {
   const previousCells = blob.cells && typeof blob.cells === 'object' ? blob.cells : {};
   const nextCells = {};
 
-  const { cellW, cellH, stepX, stepY } = getGridMetrics();
-  const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob));
+  const { cellW, cellH, stepX, stepY } = getGridMetrics(blob);
+  const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob), blob);
 
   for (let x = startX; x <= endX; x += stepX) {
     for (let y = startY; y <= endY; y += stepY) {
@@ -294,12 +305,11 @@ function ensureBlobCells(blob) {
 
 function updateBlobScaleFromControls() {
   const blobScaleInput = document.getElementById('blobScale');
-  const marginInput = document.getElementById('margin');
 
   blobTool.scale = Number(blobScaleInput?.value ?? 1) || 1;
   blobTool.cellWidth = 60;
   blobTool.cellHeight = 40;
-  blobTool.margin = Number(marginInput?.value ?? 20) || 0;
+  blobTool.margin = 0;
 
   refreshBlobCounts();
   updateTotalRectCount();
@@ -344,8 +354,8 @@ function getBlobCellRects(blob, usedCellKeys = null) {
 
   const rects = [];
   const keys = usedCellKeys || new Set();
-  const { cellW, cellH, stepX, stepY } = getGridMetrics();
-  const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob));
+  const { cellW, cellH, stepX, stepY } = getGridMetrics(blob);
+  const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob), blob);
 
   for (let x = startX; x <= endX; x += stepX) {
     for (let y = startY; y <= endY; y += stepY) {
@@ -362,7 +372,28 @@ function getBlobCellRects(blob, usedCellKeys = null) {
     }
   }
 
-  return rects;
+  const rectKeys = new Set(rects.map((cell) => cell.key));
+  const padding = INTERNAL_CELL_PADDING / getBlobScale();
+  const halfPadding = padding / 2;
+
+  return rects.map((cell) => {
+    const hasLeft = rectKeys.has(getCellKey(cell.x - stepX, cell.y));
+    const hasRight = rectKeys.has(getCellKey(cell.x + stepX, cell.y));
+    const hasTop = rectKeys.has(getCellKey(cell.x, cell.y - stepY));
+    const hasBottom = rectKeys.has(getCellKey(cell.x, cell.y + stepY));
+    const insetLeft = hasLeft ? halfPadding : 0;
+    const insetRight = hasRight ? halfPadding : 0;
+    const insetTop = hasTop ? halfPadding : 0;
+    const insetBottom = hasBottom ? halfPadding : 0;
+
+    return {
+      ...cell,
+      x: cell.x + insetLeft,
+      y: cell.y + insetTop,
+      width: cell.width - insetLeft - insetRight,
+      height: cell.height - insetTop - insetBottom,
+    };
+  });
 }
 
 function updateBlobCellsAndCount(blob) {
@@ -469,6 +500,8 @@ function createBlobFromSketch(points) {
     points: cleaned,
     count: 0,
     cells: {},
+    gridOffsetX: 0,
+    gridOffsetY: 0,
   };
 
   updateBlobCellsAndCount(blob);
@@ -706,7 +739,6 @@ function bindControls() {
     clearBlobs: document.getElementById('clearBlobs'),
     undoBlob: document.getElementById('undoBlob'),
     blobScale: document.getElementById('blobScale'),
-    margin: document.getElementById('margin'),
     zoom: document.getElementById('zoom'),
     showMeterGrid: document.getElementById('showMeterGrid'),
     showBlobGuides: document.getElementById('showBlobGuides'),
@@ -722,7 +754,6 @@ function bindControls() {
   controls.clearBlobs?.addEventListener('click', clearBlobs);
   controls.undoBlob?.addEventListener('click', undoLastBlob);
   controls.blobScale?.addEventListener('input', updateBlobScaleFromControls);
-  controls.margin?.addEventListener('input', updateBlobScaleFromControls);
   controls.canvasWidth?.addEventListener('change', resizeCanvasFromInputs);
   controls.canvasHeight?.addEventListener('change', resizeCanvasFromInputs);
   controls.exportPng?.addEventListener('click', exportFullCanvasPng);
@@ -932,7 +963,7 @@ function toggleCellAtPoint(x, y) {
 
     ensureBlobCells(blob);
 
-    const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics();
+    const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics(blob);
     const cellX = originX + Math.floor((x - originX) / stepX) * stepX;
     const cellY = originY + Math.floor((y - originY) / stepY) * stepY;
     const key = getCellKey(cellX, cellY);
@@ -1080,10 +1111,17 @@ function mouseDragged(event) {
       point.x += deltaX;
       point.y += deltaY;
     });
+    draggedBlobInfo.blob.gridOffsetX = (draggedBlobInfo.blob.gridOffsetX || 0) + deltaX;
+    draggedBlobInfo.blob.gridOffsetY = (draggedBlobInfo.blob.gridOffsetY || 0) + deltaY;
+
+    const translatedCells = {};
+    Object.entries(draggedBlobInfo.blob.cells || {}).forEach(([key, enabled]) => {
+      const [cellX, cellY] = key.split('|').map(Number);
+      translatedCells[getCellKey(cellX + deltaX, cellY + deltaY)] = enabled;
+    });
+    draggedBlobInfo.blob.cells = translatedCells;
     draggedBlobInfo.x = blobMouse.x;
     draggedBlobInfo.y = blobMouse.y;
-    updateBlobCellsAndCount(draggedBlobInfo.blob);
-    updateTotalRectCount();
   }
 }
 
