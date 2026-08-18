@@ -9,7 +9,7 @@
   <body>
     <main>
       <section id="controls">
-        <!-- KLEUR SELECTOR -->
+        <!-- Kleuren -->
         <div class="control">
           <label for="bg">Achtergrond</label>
           <input id="bg" type="color" value="#ffffff" />
@@ -19,7 +19,7 @@
           <input id="fg" type="color" value="#2ca06a" />
         </div>
 
-        <!-- SLIDERS -->
+        <!-- Raster en canvas -->
         <div class="control">
           <label for="cellWidth">Breedte</label>
           <input id="cellWidth" type="range" min="10" max="120" step="1" value="25" />
@@ -35,7 +35,17 @@
         </div>
 
         <div class="control">
-          <label for="canvasWidth">Canvas beedte</label>
+          <label for="blobRotation">Rotatie</label>
+          <input id="blobRotation" type="range" min="-180" max="180" step="1" value="0" />
+        </div>
+
+        <div class="control">
+          <label for="zoom">Zoom</label>
+          <input id="zoom" type="range" min="0.2" max="8" step="0.1" value="1" />
+        </div>
+
+        <div class="control">
+          <label for="canvasWidth">Canvas breedte</label>
           <input id="canvasWidth" type="number" min="200" max="2000" step="10" value="1200" />
         </div>
 
@@ -45,8 +55,15 @@
         </div>
 
         <div class="control">
-          <label for="zoom">Zoom</label>
-          <input id="zoom" type="range" min="0.5" max="4" step="0.1" value="1" />
+          <label>
+            <input id="showMeterGrid" type="checkbox" checked />Toon 1×1m grid
+          </label>
+        </div>
+
+        <div class="control">
+          <label>
+            <input id="showBlobGuides" type="checkbox" checked />Toon guides
+          </label>
         </div>
 
         <div class="control control-row">
@@ -55,84 +72,23 @@
         </div>
 
         <div class="control">
-          <label>
-            <input id="showOutlines" name="editorMode" type="radio" checked />Draw mode
-          </label>
-        </div>
-        <div class="control">
-          <label>
-            <input id="toggleTerrain" name="editorMode" type="radio" />Preview mode
-          </label>
-        </div>
-        <div id="drawTransformControls" class="control" hidden>
-          <div class="terrain-section-title">Blobs</div>
-          <div class="control">
-            <label for="drawPositionX">Positie X</label>
-            <input id="drawPositionX" type="range" min="-600" max="600" step="1" value="0" />
-          </div>
-
-          <div class="control">
-            <label for="drawPositionY">Positie Y</label>
-            <input id="drawPositionY" type="range" min="-400" max="400" step="1" value="0" />
-          </div>
-        </div>
-        <div id="blobTransformControls" class="control" hidden>
-          <div class="terrain-section-title">Terrein</div>
-          <div class="control">
-            <label for="terrainPositionX">Terrein X</label>
-            <input id="terrainPositionX" type="range" min="-200" max="200" step="1" value="0" />
-          </div>
-
-          <div class="control">
-            <label for="terrainPositionY">Terrein Y</label>
-            <input id="terrainPositionY" type="range" min="-200" max="200" step="1" value="0" />
-          </div>
-
-          <div class="terrain-section-title">Blobs</div>
-          <div class="control">
-            <label for="blobPositionX">Positie X</label>
-            <input id="blobPositionX" type="range" min="-200" max="200" step="1" value="0" />
-          </div>
-
-          <div class="control">
-            <label for="blobPositionY">Positie Y</label>
-            <input id="blobPositionY" type="range" min="-200" max="200" step="1" value="0" />
-          </div>
-
-          <div class="control">
-            <label for="blobRotation">Rotatie</label>
-            <input id="blobRotation" type="range" min="-180" max="180" step="1" value="0" />
-          </div>
-        </div>
-
-        <div class="control">
           <div id="totalRectCount" class="total-counter">0 Vierkantjes</div>
         </div>
 
-        <!-- KNOPPEN -->
-        <!-- <div class="control control-row">
-          <button id="randomize">randomize</button>
-          <button id="reset">reset</button>
-        </div> -->
-
-        <!-- KEYFRAMES -->
-        <!-- <div class="control control-section">
-          <button id="addKeyframe">add keyframe</button>
-          <button id="removeKeyframe">remove keyframe</button>
-        </div>
-        <div class="control" id="keyframeNav"></div>
-        <div class="control">
-          <button id="exportScene">export scene</button>
-          <button id="importScene" type="button">import scene</button>
-          <input id="importSceneInput" type="file" accept=".json,application/json" hidden />
-        </div> -->
-
-        <!-- EXPORT -->
+        <!-- Export -->
         <div class="control">
           <button id="exportPng" onclick="saveCanvas('export.png')">Export PNG</button>
-          <!-- <button id="recordMp4">record MP4</button> -->
           <button id="exportSvg" type="button">Export SVG</button>
         </div>
+
+        <p class="interaction-help">
+          Scroll om te zoomen. <br> Scroll wheel slepen om te navigeren. <br> Sleep een blob om hem te verplaatsen.
+        </p>
+
+        <footer class="credits">
+          <span>Ontwikkeld door Joep Horn</span>
+          <span>Eigendom van HeyHeydeHaas</span>
+        </footer>
       </section>
 
       <div id="canvasWrap"></div>
@@ -140,7 +96,7 @@
 
     <script src="./libs/p5.min.js"></script>
     <script src="./libs/p5.svg.js"></script>
-    
+
     <script src="./src/params.js"></script>
     <script src="./src/transition-manager.js"></script>
     <script src="./src/export-manager.js"></script>

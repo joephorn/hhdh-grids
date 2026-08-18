@@ -16,61 +16,24 @@ main {
 }
 
 #controls {
+  position: relative;
   flex: 0 0 240px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
+  padding: 16px 16px 58px;
   background-color: #fafafa;
   box-sizing: border-box;
   align-self: stretch;
 }
 
-/* Standaard rij-layout voor labels & inputs */
+/* Controls */
 .control {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-#blobTransformControls,
-#drawTransformControls {
-  flex-direction: column;
-}
-
-#blobTransformControls[hidden],
-#drawTransformControls[hidden] {
-  display: none;
-}
-
-.terrain-section-title {
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-#blobTransformControls > .control,
-#drawTransformControls > .control {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-
-#blobTransformControls > .control label,
-#drawTransformControls > .control label {
-  white-space: nowrap;
-}
-
-#blobTransformControls > .control input[type='range'],
-#drawTransformControls > .control input[type='range'] {
-  min-width: 0;
-}
-
-/* Kleurknoppen, checkboxes en losse rijen netjes naast elkaar uitlijnen */
 .control:has(input[type='color']),
 .control:has(output) {
   flex-direction: row;
@@ -78,7 +41,6 @@ main {
   justify-content: space-between;
 }
 
-/* Invoervelden & Sliders consistent stylen */
 input[type='number'],
 input[type='range'] {
   width: 100%;
@@ -112,7 +74,6 @@ input[type='color']::-webkit-color-swatch {
   border-radius: 2px;
 }
 
-/* Modus-selector */
 .control label:has(input[type='checkbox']),
 .control label:has(input[type='radio']) {
   display: flex;
@@ -124,7 +85,23 @@ input[type='color']::-webkit-color-swatch {
   color: #1a202c;
 }
 
-/* Knoppen gelijkmatig verdelen */
+.interaction-help {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.credits {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  color: #b9b9b9;
+  font-size: 11px;
+}
+
 .control-row {
   display: flex;
   flex-direction: row;
@@ -150,9 +127,8 @@ input[type='color']::-webkit-color-swatch {
   border-color: #94a3b8;
 }
 
-/* Teller visueel accentueren */
 .total-counter {
-  padding: 8px 12px;
+  padding: 6px 12px 8px;
   background: #000000;
   border-radius: 6px;
   font-weight: 600;
@@ -205,12 +181,7 @@ button:hover {
   filter: brightness(0.95);
 }
 
-.total-counter {
-  padding-top: 6px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
+/* Canvas */
 #canvasWrap {
   flex: 1 1 auto;
   display: flex;

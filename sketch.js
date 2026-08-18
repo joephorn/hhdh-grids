@@ -5,20 +5,20 @@ const blobTool = {
   cellWidth: 60,
   cellHeight: 40,
   margin: 20,
-  showOutlines: true,
-  showTerrain: false,
+  showMeterGrid: true,
+  showBlobGuides: true,
   zoom: 1,
-  terrainPositionX: 0,
-  terrainPositionY: 0,
-  drawPositionX: 0,
-  drawPositionY: 0,
-  positionX: 0,
-  positionY: 0,
+  viewportX: 0,
+  viewportY: 0,
   rotation: 0,
+  rotationCenter: null,
 };
 
 let sceneLayer;
 let terrainLayer;
+let draggedPointInfo = null;
+let draggedBlobInfo = null;
+let viewportDragInfo = null;
 
 const terrainGridReference = {
   x: 720.535,
@@ -29,41 +29,81 @@ const terrainGridReference = {
   sourceHeight: 757.365,
 };
 
+const CANVAS_DEFAULTS = {
+  width: 1200,
+  height: 750,
+};
+
+// -----------------------------------------------------------------------------
+// Coordinate systems and transforms
+// -----------------------------------------------------------------------------
+
 function getScenePoint(x, y) {
   const zoom = blobTool.zoom;
   return {
-    x: (x - width / 2) / zoom + width / 2,
-    y: (y - height / 2) / zoom + height / 2,
+    x: (x - width / 2 - blobTool.viewportX) / zoom + width / 2,
+    y: (y - height / 2 - blobTool.viewportY) / zoom + height / 2,
   };
 }
 
 function applySceneZoom() {
-  translate(width / 2, height / 2);
+  translate(width / 2 + blobTool.viewportX, height / 2 + blobTool.viewportY);
   scale(blobTool.zoom);
   translate(-width / 2, -height / 2);
 }
 
+function setZoomAroundPoint(nextZoom, screenX, screenY) {
+  const scenePoint = getScenePoint(screenX, screenY);
+  blobTool.zoom = Math.min(8, Math.max(0.2, nextZoom));
+  blobTool.viewportX = screenX - width / 2 - (scenePoint.x - width / 2) * blobTool.zoom;
+  blobTool.viewportY = screenY - height / 2 - (scenePoint.y - height / 2) * blobTool.zoom;
+  syncSceneLayer();
+
+  const zoomInput = document.getElementById('zoom');
+  if (zoomInput) zoomInput.value = String(blobTool.zoom);
+}
+
+function calculateBlobTransformCenter() {
+  const points = blobTool.blobs.filter(Boolean).flatMap((blob) => blob.points || []);
+  if (!points.length) return { x: width / 2, y: height / 2 };
+
+  return {
+    x: (Math.min(...points.map((point) => point.x)) + Math.max(...points.map((point) => point.x))) / 2,
+    y: (Math.min(...points.map((point) => point.y)) + Math.max(...points.map((point) => point.y))) / 2,
+  };
+}
+
 function getBlobTransformCenter() {
-  return { x: width / 2, y: height / 2 };
+  if (blobTool.rotationCenter) return blobTool.rotationCenter;
+
+  const center = calculateBlobTransformCenter();
+  if (blobTool.rotation !== 0) blobTool.rotationCenter = center;
+  return center;
+}
+
+function setBlobRotation(nextRotation) {
+  if (blobTool.rotation === 0 && nextRotation !== 0) {
+    blobTool.rotationCenter = calculateBlobTransformCenter();
+  }
+  if (nextRotation === 0) {
+    blobTool.rotationCenter = null;
+  }
+  blobTool.rotation = nextRotation;
 }
 
 function getTransformedBlobPoint(sceneX, sceneY, includeRotation = true) {
-  if (!blobTool.showTerrain) {
-    return {
-      x: sceneX - blobTool.drawPositionX,
-      y: sceneY - blobTool.drawPositionY,
-    };
-  }
-
-  const center = getBlobTransformCenter();
+  const canvasCenter = { x: width / 2, y: height / 2 };
+  const rotationCenter = getBlobTransformCenter();
   const blobScale = getBlobScale();
-  const x = (sceneX - center.x - blobTool.positionX) / blobScale;
-  const y = (sceneY - center.y - blobTool.positionY) / blobScale;
+  const x = (sceneX - canvasCenter.x) / blobScale + canvasCenter.x;
+  const y = (sceneY - canvasCenter.y) / blobScale + canvasCenter.y;
   const angle = radians(includeRotation ? -blobTool.rotation : 0);
+  const offsetX = x - rotationCenter.x;
+  const offsetY = y - rotationCenter.y;
 
   return {
-    x: x * cos(angle) - y * sin(angle) + center.x,
-    y: x * sin(angle) + y * cos(angle) + center.y,
+    x: offsetX * cos(angle) - offsetY * sin(angle) + rotationCenter.x,
+    y: offsetX * sin(angle) + offsetY * cos(angle) + rotationCenter.y,
   };
 }
 
@@ -76,33 +116,18 @@ function getBlobOutlinePoint(sceneX, sceneY) {
 }
 
 function applyBlobTransform(includeRotation = true) {
-  if (!blobTool.showTerrain) {
-    translate(blobTool.drawPositionX, blobTool.drawPositionY);
-    return;
-  }
+  const canvasCenter = { x: width / 2, y: height / 2 };
+  const rotationCenter = getBlobTransformCenter();
 
-  const center = getBlobTransformCenter();
-  translate(center.x + blobTool.positionX, center.y + blobTool.positionY);
-  if (includeRotation) rotate(radians(blobTool.rotation));
+  translate(canvasCenter.x, canvasCenter.y);
   scale(getBlobScale());
-  translate(-center.x, -center.y);
-}
+  translate(-canvasCenter.x, -canvasCenter.y);
 
-function centerBlobsInDrawMode() {
-  const points = [...blobTool.blobs, blobTool.activeBlob]
-    .filter((blob) => blob && Array.isArray(blob.points))
-    .flatMap((blob) => blob.points);
-  if (!points.length) return;
-
-  const centerX = (Math.min(...points.map((point) => point.x)) + Math.max(...points.map((point) => point.x))) / 2;
-  const centerY = (Math.min(...points.map((point) => point.y)) + Math.max(...points.map((point) => point.y))) / 2;
-  blobTool.drawPositionX = width / 2 - centerX;
-  blobTool.drawPositionY = height / 2 - centerY;
-
-  const drawPositionXInput = document.getElementById('drawPositionX');
-  const drawPositionYInput = document.getElementById('drawPositionY');
-  if (drawPositionXInput) drawPositionXInput.value = String(blobTool.drawPositionX);
-  if (drawPositionYInput) drawPositionYInput.value = String(blobTool.drawPositionY);
+  if (includeRotation) {
+    translate(rotationCenter.x, rotationCenter.y);
+    rotate(radians(blobTool.rotation));
+    translate(-rotationCenter.x, -rotationCenter.y);
+  }
 }
 
 function syncSceneLayer() {
@@ -119,12 +144,10 @@ function syncSceneLayer() {
 
   terrainLayer.style.width = `${displayWidth}px`;
   terrainLayer.style.height = `${displayHeight}px`;
-  terrainLayer.style.left = `${(width - displayWidth) / 2 + blobTool.terrainPositionX}px`;
-  terrainLayer.style.top = `${(height - displayHeight) / 2 + blobTool.terrainPositionY}px`;
+  terrainLayer.style.left = `${(width - displayWidth) / 2 + blobTool.viewportX}px`;
+  terrainLayer.style.top = `${(height - displayHeight) / 2 + blobTool.viewportY}px`;
   terrainLayer.style.transform = `scale(${blobTool.zoom})`;
-  terrainLayer.hidden = !blobTool.showTerrain;
-  document.getElementById('blobTransformControls').hidden = !blobTool.showTerrain;
-  document.getElementById('drawTransformControls').hidden = blobTool.showTerrain;
+  terrainLayer.hidden = false;
 }
 
 function getTerrainReferenceMetrics() {
@@ -135,30 +158,20 @@ function getTerrainReferenceMetrics() {
   return {
     cellW: terrainGridReference.width * scaleFactor,
     cellH: terrainGridReference.height * scaleFactor,
-    originX: (width - terrainWidth) / 2 + blobTool.terrainPositionX + terrainGridReference.x * scaleFactor,
-    originY: (height - terrainHeight) / 2 + blobTool.terrainPositionY + terrainGridReference.y * scaleFactor,
+    originX: (width - terrainWidth) / 2 + terrainGridReference.x * scaleFactor,
+    originY: (height - terrainHeight) / 2 + terrainGridReference.y * scaleFactor,
   };
 }
 
 function getBlobScale() {
-  if (!blobTool.showTerrain) return 1;
   return getTerrainReferenceMetrics().cellW / blobTool.cellWidth;
 }
 
-function getGridMetrics() {
-  if (!blobTool.showTerrain) {
-    const gap = Math.max(0, blobTool.margin);
-    return {
-      cellW: blobTool.cellWidth,
-      cellH: blobTool.cellHeight,
-      gap,
-      originX: 0,
-      originY: 0,
-      stepX: blobTool.cellWidth + gap,
-      stepY: blobTool.cellHeight + gap,
-    };
-  }
+function getRenderedBlobScale() {
+  return blobTool.zoom * getBlobScale();
+}
 
+function getGridMetrics() {
   const reference = getTerrainReferenceMetrics();
   const blobScale = getBlobScale();
   const origin = getBlobPoint(reference.originX, reference.originY);
@@ -168,6 +181,21 @@ function getGridMetrics() {
 
   return { cellW, cellH, gap, originX: origin.x, originY: origin.y, stepX: cellW + gap, stepY: cellH + gap };
 }
+
+function getGridBounds(bounds) {
+  const { stepX, stepY, originX, originY } = getGridMetrics();
+
+  return {
+    startX: originX + Math.floor((bounds.minX - originX) / stepX) * stepX,
+    startY: originY + Math.floor((bounds.minY - originY) / stepY) * stepY,
+    endX: originX + Math.ceil((bounds.maxX - originX) / stepX) * stepX,
+    endY: originY + Math.ceil((bounds.maxY - originY) / stepY) * stepY,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Blob and cell data
+// -----------------------------------------------------------------------------
 
 function getDefaultBlobSize(height = 120) {
   return {
@@ -221,9 +249,7 @@ function getTotalRectCount() {
 
 function refreshBlobCounts() {
   blobTool.blobs.forEach((blob) => {
-    if (!blob) return;
-    ensureBlobCells(blob);
-    blob.count = countCellsInBlob(blob);
+    updateBlobCellsAndCount(blob);
   });
 }
 
@@ -243,12 +269,8 @@ function ensureBlobCells(blob) {
   const previousCells = blob.cells && typeof blob.cells === 'object' ? blob.cells : {};
   const nextCells = {};
 
-  const bounds = getBlobBounds(blob);
-  const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics();
-  const startX = originX + Math.floor((bounds.minX - originX) / stepX) * stepX;
-  const startY = originY + Math.floor((bounds.minY - originY) / stepY) * stepY;
-  const endX = originX + Math.ceil((bounds.maxX - originX) / stepX) * stepX;
-  const endY = originY + Math.ceil((bounds.maxY - originY) / stepY) * stepY;
+  const { cellW, cellH, stepX, stepY } = getGridMetrics();
+  const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob));
 
   for (let x = startX; x <= endX; x += stepX) {
     for (let y = startY; y <= endY; y += stepY) {
@@ -277,8 +299,7 @@ function updateCellSizeFromControls() {
   blobTool.margin = Number(marginInput?.value ?? 20) || 0;
 
   if (heightReadout) {
-    const height = blobTool.showTerrain ? getTerrainReferenceMetrics().cellH : getGridMetrics().cellH;
-    heightReadout.textContent = String(height.toFixed(2));
+    heightReadout.textContent = String(getTerrainReferenceMetrics().cellH.toFixed(2));
   }
 
   refreshBlobCounts();
@@ -324,12 +345,8 @@ function getBlobCellRects(blob, usedCellKeys = null) {
 
   const rects = [];
   const keys = usedCellKeys || new Set();
-  const bounds = getBlobBounds(blob);
-  const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics();
-  const startX = originX + Math.floor((bounds.minX - originX) / stepX) * stepX;
-  const startY = originY + Math.floor((bounds.minY - originY) / stepY) * stepY;
-  const endX = originX + Math.ceil((bounds.maxX - originX) / stepX) * stepX;
-  const endY = originY + Math.ceil((bounds.maxY - originY) / stepY) * stepY;
+  const { cellW, cellH, stepX, stepY } = getGridMetrics();
+  const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob));
 
   for (let x = startX; x <= endX; x += stepX) {
     for (let y = startY; y <= endY; y += stepY) {
@@ -349,50 +366,39 @@ function getBlobCellRects(blob, usedCellKeys = null) {
   return rects;
 }
 
-function drawGridTemplate() {
-  if (blobTool.showTerrain || !blobTool.showOutlines) return;
-
-  const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics();
-  const topLeft = getScenePoint(0, 0);
-  const bottomRight = getScenePoint(width, height);
-  const startX = originX + Math.floor((topLeft.x - originX) / stepX) * stepX;
-  const startY = originY + Math.floor((topLeft.y - originY) / stepY) * stepY;
-  const endX = originX + Math.ceil((bottomRight.x - originX) / stepX) * stepX;
-  const endY = originY + Math.ceil((bottomRight.y - originY) / stepY) * stepY;
-
-  push();
-  noStroke();
-  fill(238);
-  for (let x = startX; x <= endX; x += stepX) {
-    for (let y = startY; y <= endY; y += stepY) {
-      rect(x, y, cellW, cellH);
-    }
-  }
-  pop();
+function updateBlobCellsAndCount(blob) {
+  if (!blob) return;
+  ensureBlobCells(blob);
+  blob.count = countCellsInBlob(blob);
 }
 
-function drawScaleBar() {
-  const x = 40;
-  const y = height - 40;
-  const cellWidth = blobTool.showTerrain ? getTerrainReferenceMetrics().cellW : getGridMetrics().cellW;
-  const meterPx = Math.min(200, Math.max(20, cellWidth * 1.5));
-  const label = '1 m';
-  const endX = x + meterPx;
+// -----------------------------------------------------------------------------
+// Canvas rendering
+// -----------------------------------------------------------------------------
 
-  stroke(30);
-  strokeWeight(1.25);
-  line(x, y, endX, y);
-  line(x, y - 6, x, y + 6);
-  line(endX, y - 6, endX, y + 6);
+function drawMeterGrid() {
+  if (!blobTool.showMeterGrid) return;
 
-  noStroke();
-  textAlign(CENTER, CENTER);
-  textSize(11);
-  fill(0);
-  text(label, x + meterPx / 2, y - 12);
-  textAlign(LEFT, CENTER);
-  text('1 Vierkant = 60 × 40 cm', endX + 12, y + 2);
-  fill(255);
+  const reference = getTerrainReferenceMetrics();
+  const meterWidth = reference.cellW / 0.6;
+  const meterHeight = reference.cellH / 0.4;
+  const topLeft = getScenePoint(0, 0);
+  const bottomRight = getScenePoint(width, height);
+  const startX = reference.originX + Math.floor((topLeft.x - reference.originX) / meterWidth) * meterWidth;
+  const startY = reference.originY + Math.floor((topLeft.y - reference.originY) / meterHeight) * meterHeight;
+  const endX = reference.originX + Math.ceil((bottomRight.x - reference.originX) / meterWidth) * meterWidth;
+  const endY = reference.originY + Math.ceil((bottomRight.y - reference.originY) / meterHeight) * meterHeight;
+
+  push();
+  stroke(30, 90);
+  strokeWeight(1 / blobTool.zoom);
+  for (let x = startX; x <= endX; x += meterWidth) {
+    line(x, topLeft.y, x, bottomRight.y);
+  }
+  for (let y = startY; y <= endY; y += meterHeight) {
+    line(topLeft.x, y, bottomRight.x, y);
+  }
+  pop();
 }
 
 function drawBlob(blob, forceOutline = false, usedCellKeys = null, options = {}) {
@@ -420,22 +426,22 @@ function drawBlob(blob, forceOutline = false, usedCellKeys = null, options = {})
   }
 
   const isActiveDraft = blob === blobTool.activeBlob;
-  const shouldDrawOutline = drawOutline && (forceOutline || isActiveDraft || blobTool.showOutlines);
+  const shouldDrawOutline = drawOutline && (forceOutline || isActiveDraft || blobTool.showBlobGuides);
   if (shouldDrawOutline) {
+    const interactionScale = getRenderedBlobScale();
     noFill();
     stroke(18);
-    strokeWeight(1.5);
-    drawingContext.setLineDash(forceOutline || isActiveDraft ? [0, 0] : [6, 6]);
+    strokeWeight(1.5 / interactionScale);
+    drawingContext.setLineDash(forceOutline || isActiveDraft ? [] : [6 / interactionScale, 6 / interactionScale]);
     beginShape();
     blob.points.forEach((point) => vertex(point.x, point.y));
     endShape(isActiveDraft ? OPEN : CLOSE);
     drawingContext.setLineDash([]);
 
-    // 3. Teken de cijfertekst BOVENOP de omtrek (groter gemaakt naar 16px)
     noStroke();
     fill(0);
     textAlign(CENTER, CENTER);
-    textSize(16); // Grotere tekst`
+    textSize(16 / interactionScale);
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
     text(blob.count, centerX, centerY);
@@ -466,8 +472,7 @@ function createBlobFromSketch(points) {
     cells: {},
   };
 
-  ensureBlobCells(blob);
-  blob.count = countCellsInBlob(blob);
+  updateBlobCellsAndCount(blob);
   return blob;
 }
 
@@ -522,6 +527,7 @@ function addBlobAt(x, y) {
 function clearBlobs() {
   blobTool.blobs = [];
   blobTool.activeBlob = null;
+  blobTool.rotationCenter = null;
   updateTotalRectCount();
 }
 
@@ -531,12 +537,16 @@ function undoLastBlob() {
   updateTotalRectCount();
 }
 
+// -----------------------------------------------------------------------------
+// Export
+// -----------------------------------------------------------------------------
+
 function exportBlobRectsSvg() {
   const canvasWidth = width;
   const canvasHeight = height;
   const backgroundColor = document.getElementById('bg')?.value || '#ffffff';
 
-  // 1. Cellen (Vierkantjes)[cite: 1]
+  // Cellen
   const rects = [];
   const usedCellKeys = new Set();
   blobTool.blobs.forEach((blob) => {
@@ -553,11 +563,11 @@ function exportBlobRectsSvg() {
     });
   });
 
-  // 2. Omtrekken en getallen (indien showOutlines aan staat)[cite: 1]
+  // Omtrekken en aantallen
   let outlinesSvg = '';
   let textSvg = '';
 
-  if (blobTool.showOutlines) {
+  if (blobTool.showBlobGuides) {
     blobTool.blobs.forEach((blob) => {
       if (!blob || !Array.isArray(blob.points) || blob.points.length < 3) return;
 
@@ -571,10 +581,10 @@ function exportBlobRectsSvg() {
     });
   }
 
-  // 3. Schaalbalk[cite: 1]
+  // Schaalbalk
   const scaleX = 40;
   const scaleY = height - 40;
-  const cellWidth = blobTool.showTerrain ? getTerrainReferenceMetrics().cellW : getGridMetrics().cellW;
+  const cellWidth = getTerrainReferenceMetrics().cellW;
   const meterPx = Math.min(200, Math.max(20, cellWidth * 1.5));
   const scaleSvg = `
     <line x1="${scaleX}" y1="${scaleY}" x2="${scaleX + meterPx}" y2="${scaleY}" stroke="#1e1e1e" stroke-width="1.25" />
@@ -584,7 +594,6 @@ function exportBlobRectsSvg() {
     <text x="${scaleX + meterPx + 12}" y="${scaleY + 4}" font-size="11" font-family="sans-serif" text-anchor="start" fill="#000000">1 cell = 60 × 40 cm</text>
   `;
 
-  // Samenvoegen in SVG string[cite: 1]
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}">
       <rect width="100%" height="100%" fill="${backgroundColor}" />
@@ -619,8 +628,13 @@ function resizeCanvasFromInputs() {
   }
 }
 
-function setup() {
+// -----------------------------------------------------------------------------
+// UI setup and controls
+// -----------------------------------------------------------------------------
+
+function createSceneLayers() {
   const canvasWrap = document.getElementById('canvasWrap');
+
   sceneLayer = document.createElement('div');
   sceneLayer.id = 'sceneLayer';
   canvasWrap.appendChild(sceneLayer);
@@ -631,156 +645,88 @@ function setup() {
   terrainLayer.alt = '';
   terrainLayer.addEventListener('load', syncSceneLayer);
   sceneLayer.appendChild(terrainLayer);
+}
 
-  createCanvas(1200, 750).parent(sceneLayer);
+function bindControls() {
+  const controls = {
+    canvasWidth: document.getElementById('canvasWidth'),
+    canvasHeight: document.getElementById('canvasHeight'),
+    newBlob: document.getElementById('newBlob'),
+    clearBlobs: document.getElementById('clearBlobs'),
+    undoBlob: document.getElementById('undoBlob'),
+    cellWidth: document.getElementById('cellWidth'),
+    margin: document.getElementById('margin'),
+    zoom: document.getElementById('zoom'),
+    showMeterGrid: document.getElementById('showMeterGrid'),
+    showBlobGuides: document.getElementById('showBlobGuides'),
+    blobRotation: document.getElementById('blobRotation'),
+    exportSvg: document.getElementById('exportSvg'),
+  };
+
+  if (controls.canvasWidth) controls.canvasWidth.value = String(width);
+  if (controls.canvasHeight) controls.canvasHeight.value = String(height);
+
+  controls.newBlob?.addEventListener('click', () => addBlobAt(width * 0.5, height * 0.5));
+  controls.clearBlobs?.addEventListener('click', clearBlobs);
+  controls.undoBlob?.addEventListener('click', undoLastBlob);
+  controls.cellWidth?.addEventListener('input', updateCellSizeFromControls);
+  controls.margin?.addEventListener('input', updateCellSizeFromControls);
+  controls.canvasWidth?.addEventListener('change', resizeCanvasFromInputs);
+  controls.canvasHeight?.addEventListener('change', resizeCanvasFromInputs);
+  controls.exportSvg?.addEventListener('click', exportBlobRectsSvg);
+
+  controls.zoom?.addEventListener('input', (event) => {
+    setZoomAroundPoint(Number(event.target.value) || 1, width / 2, height / 2);
+  });
+  controls.showMeterGrid?.addEventListener('change', (event) => {
+    blobTool.showMeterGrid = event.target.checked;
+  });
+  controls.showBlobGuides?.addEventListener('change', (event) => {
+    blobTool.showBlobGuides = event.target.checked;
+  });
+  controls.blobRotation?.addEventListener('input', (event) => {
+    setBlobRotation(Number(event.target.value) || 0);
+  });
+}
+
+function setup() {
+  createSceneLayers();
+  const canvas = createCanvas(CANVAS_DEFAULTS.width, CANVAS_DEFAULTS.height);
+  canvas.parent(sceneLayer);
+  canvas.elt.addEventListener('mousedown', (event) => {
+    if (event.button === 1) event.preventDefault();
+  });
+  canvas.elt.addEventListener('auxclick', (event) => event.preventDefault());
   syncSceneLayer();
   ellipseMode(CENTER);
   frameRate(30);
 
-  const canvasWidthInput = document.getElementById('canvasWidth');
-  const canvasHeightInput = document.getElementById('canvasHeight');
-  if (canvasWidthInput) canvasWidthInput.value = String(width);
-  if (canvasHeightInput) canvasHeightInput.value = String(height);
-
   window.blobTool = blobTool;
   updateCellSizeFromControls();
   config();
-
-  const newBlobButton = document.getElementById('newBlob');
-  if (newBlobButton) {
-    newBlobButton.addEventListener('click', () => {
-      addBlobAt(width * 0.5, height * 0.5);
-    });
-  }
-
-  const clearBlobsButton = document.getElementById('clearBlobs');
-  if (clearBlobsButton) {
-    clearBlobsButton.addEventListener('click', clearBlobs);
-  }
-
-  const undoBlobButton = document.getElementById('undoBlob');
-  if (undoBlobButton) {
-    undoBlobButton.addEventListener('click', undoLastBlob);
-  }
-
-  const cellWidthInput = document.getElementById('cellWidth');
-  const marginInput = document.getElementById('margin');
-  const zoomInput = document.getElementById('zoom');
-  const showOutlinesInput = document.getElementById('showOutlines');
-  const toggleTerrainInput = document.getElementById('toggleTerrain');
-  const drawPositionXInput = document.getElementById('drawPositionX');
-  const drawPositionYInput = document.getElementById('drawPositionY');
-  const terrainPositionXInput = document.getElementById('terrainPositionX');
-  const terrainPositionYInput = document.getElementById('terrainPositionY');
-  const blobPositionXInput = document.getElementById('blobPositionX');
-  const blobPositionYInput = document.getElementById('blobPositionY');
-  const blobRotationInput = document.getElementById('blobRotation');
-  const exportSvgButton = document.getElementById('exportSvg');
-
-  if (cellWidthInput) {
-    cellWidthInput.addEventListener('input', updateCellSizeFromControls);
-  }
-  if (marginInput) {
-    marginInput.addEventListener('input', updateCellSizeFromControls);
-  }
-  if (zoomInput) {
-    zoomInput.addEventListener('input', (event) => {
-      blobTool.zoom = Number(event.target.value) || 1;
-      syncSceneLayer();
-    });
-  }
-  function setEditorMode(mode) {
-    const isPreviewMode = mode === 'preview';
-    const wasPreviewMode = blobTool.showTerrain;
-    blobTool.showOutlines = !isPreviewMode;
-    blobTool.showTerrain = isPreviewMode;
-    if (wasPreviewMode && !isPreviewMode) centerBlobsInDrawMode();
-    if (showOutlinesInput) showOutlinesInput.checked = !isPreviewMode;
-    if (toggleTerrainInput) toggleTerrainInput.checked = isPreviewMode;
-    syncSceneLayer();
-    updateCellSizeFromControls();
-  }
-  if (showOutlinesInput) {
-    showOutlinesInput.addEventListener('change', (event) => {
-      if (event.target.checked) setEditorMode('draw');
-    });
-  }
-  if (toggleTerrainInput) {
-    toggleTerrainInput.addEventListener('change', (event) => {
-      if (event.target.checked) setEditorMode('preview');
-    });
-  }
-  if (drawPositionXInput) {
-    drawPositionXInput.addEventListener('input', (event) => {
-      blobTool.drawPositionX = Number(event.target.value) || 0;
-    });
-  }
-  if (drawPositionYInput) {
-    drawPositionYInput.addEventListener('input', (event) => {
-      blobTool.drawPositionY = Number(event.target.value) || 0;
-    });
-  }
-  if (terrainPositionXInput) {
-    terrainPositionXInput.addEventListener('input', (event) => {
-      blobTool.terrainPositionX = Number(event.target.value) || 0;
-      syncSceneLayer();
-      refreshBlobCounts();
-      updateTotalRectCount();
-    });
-  }
-  if (terrainPositionYInput) {
-    terrainPositionYInput.addEventListener('input', (event) => {
-      blobTool.terrainPositionY = Number(event.target.value) || 0;
-      syncSceneLayer();
-      refreshBlobCounts();
-      updateTotalRectCount();
-    });
-  }
-  if (blobPositionXInput) {
-    blobPositionXInput.addEventListener('input', (event) => {
-      blobTool.positionX = Number(event.target.value) || 0;
-    });
-  }
-  if (blobPositionYInput) {
-    blobPositionYInput.addEventListener('input', (event) => {
-      blobTool.positionY = Number(event.target.value) || 0;
-    });
-  }
-  if (blobRotationInput) {
-    blobRotationInput.addEventListener('input', (event) => {
-      blobTool.rotation = Number(event.target.value) || 0;
-    });
-  }
-  if (canvasWidthInput) {
-    canvasWidthInput.addEventListener('change', resizeCanvasFromInputs);
-  }
-  if (canvasHeightInput) {
-    canvasHeightInput.addEventListener('change', resizeCanvasFromInputs);
-  }
-  if (exportSvgButton) {
-    exportSvgButton.addEventListener('click', exportBlobRectsSvg);
-  }
+  bindControls();
 }
 
-let draggedPointInfo = null;
+// -----------------------------------------------------------------------------
+// Pointer hit testing and editing
+// -----------------------------------------------------------------------------
 
 function getPointUnderMouse(x, y, radius = 10) {
   // Check altijd de actieve blob waar je nu aan werkt
   if (blobTool.activeBlob) {
     for (let i = 0; i < blobTool.activeBlob.points.length; i++) {
-      let p = blobTool.activeBlob.points[i];
+      const p = blobTool.activeBlob.points[i];
       if (dist(x, y, p.x, p.y) <= radius) {
         return { blob: blobTool.activeBlob, point: p, index: i, isActive: true };
       }
     }
   }
 
-  // Check getekende blobs ALLEEN als showOutlines aan staat
-  if (blobTool.showOutlines) {
-    for (let blob of blobTool.blobs) {
+  if (blobTool.showBlobGuides) {
+    for (const blob of blobTool.blobs) {
       if (!blob || !blob.points) continue;
       for (let i = 0; i < blob.points.length; i++) {
-        let p = blob.points[i];
+        const p = blob.points[i];
         if (dist(x, y, p.x, p.y) <= radius) {
           return { blob, point: p, index: i, isActive: false };
         }
@@ -790,13 +736,22 @@ function getPointUnderMouse(x, y, radius = 10) {
   return null;
 }
 
-// 2. Aangepast: Zoek lijnstuk onder muis (rekening houdend met showOutlines)
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+  if (l2 === 0) return { d: dist(px, py, x1, y1), projX: x1, projY: y1 };
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * (x2 - x1);
+  const projY = y1 + t * (y2 - y1);
+  return { d: dist(px, py, projX, projY), projX, projY };
+}
+
 function getEdgeUnderMouse(x, y, maxDist = 8) {
   let closestEdge = null;
   let minD = maxDist;
 
-  // Check getekende blobs ALLEEN als showOutlines aan staat
-  if (blobTool.showOutlines) {
+  // Check alle reeds gemaakte (gesloten) blobs
+  if (blobTool.showBlobGuides) {
     blobTool.blobs.forEach((blob) => {
       if (!blob || !blob.points || blob.points.length < 3) return;
       const len = blob.points.length;
@@ -829,70 +784,34 @@ function getEdgeUnderMouse(x, y, maxDist = 8) {
   return closestEdge;
 }
 
-// Helper: Bereken afstand van punt (px, py) tot lijnstuk (x1,y1)-(x2,y2)
-function distToSegment(px, py, x1, y1, x2, y2) {
-  const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
-  if (l2 === 0) return { d: dist(px, py, x1, y1), projX: x1, projY: y1 };
-  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
-  t = Math.max(0, Math.min(1, t));
-  const projX = x1 + t * (x2 - x1);
-  const projY = y1 + t * (y2 - y1);
-  return { d: dist(px, py, projX, projY), projX, projY };
-}
-
-// 2. Zoek of de muis boven een lijnstuk/rand van een blob hangt
-function getEdgeUnderMouse(x, y, maxDist = 8) {
-  let closestEdge = null;
-  let minD = maxDist;
-
-  // Check alle reeds gemaakte (gesloten) blobs
-  blobTool.blobs.forEach((blob) => {
-    if (!blob || !blob.points || blob.points.length < 3) return;
-    const len = blob.points.length;
-    for (let i = 0; i < len; i++) {
-      const p1 = blob.points[i];
-      const p2 = blob.points[(i + 1) % len];
-      const res = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
-      if (res.d < minD) {
-        minD = res.d;
-        closestEdge = { blob, insertIndex: i + 1, point: { x: res.projX, y: res.projY } };
-      }
-    }
-  });
-
-  // Check de actieve open blob
-  if (blobTool.activeBlob && blobTool.activeBlob.points.length >= 2) {
-    const pts = blobTool.activeBlob.points;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const res = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
-      if (res.d < minD) {
-        minD = res.d;
-        closestEdge = { blob: blobTool.activeBlob, insertIndex: i + 1, point: { x: res.projX, y: res.projY } };
-      }
-    }
+function getBlobUnderMouse(x, y) {
+  for (let index = blobTool.blobs.length - 1; index >= 0; index -= 1) {
+    const blob = blobTool.blobs[index];
+    if (blob?.points?.length >= 3 && pointInPolygon(x, y, blob.points)) return blob;
   }
-
-  return closestEdge;
+  return null;
 }
 
-// Teken handles op de hoekpunten
+function isMiddlePointer(event) {
+  return event?.button === 1 || mouseButton === CENTER;
+}
+
 function drawBlobHandles(blob) {
   if (!blob || !blob.points) return;
 
+  const interactionScale = getRenderedBlobScale();
   push();
   stroke(30);
-  strokeWeight(1.5);
+  strokeWeight(1.5 / interactionScale);
 
   blob.points.forEach((p, idx) => {
     // Punten vergroot (startpunt 14px, overige punten 11px)
     if (blob === blobTool.activeBlob && idx === 0) {
       fill('#ff3333');
-      ellipse(p.x, p.y, 14, 14);
+      ellipse(p.x, p.y, 14 / interactionScale, 14 / interactionScale);
     } else {
       fill(255);
-      ellipse(p.x, p.y, 11, 11);
+      ellipse(p.x, p.y, 11 / interactionScale, 11 / interactionScale);
     }
   });
   pop();
@@ -900,13 +819,10 @@ function drawBlobHandles(blob) {
 
 function draw() {
   clear();
-  if (!blobTool.showTerrain) {
-    background(typeof bg !== 'undefined' ? bg : '#ffffff');
-  }
 
   push();
   applySceneZoom();
-  drawGridTemplate();
+  drawMeterGrid();
   const sceneMouse = getScenePoint(mouseX, mouseY);
   const blobMouse = getBlobPoint(sceneMouse.x, sceneMouse.y);
 
@@ -918,10 +834,7 @@ function draw() {
   // Teken definitieve blobs
   blobTool.blobs.forEach((blob) => {
     drawBlob(blob, false, usedCellKeys);
-    // Teken alleen handles als de checkbox aan staat
-    if (blobTool.showOutlines) {
-      drawBlobHandles(blob);
-    }
+    if (blobTool.showBlobGuides) drawBlobHandles(blob);
   });
 
   // Teken actieve blob + preview lijn naar muis
@@ -935,12 +848,13 @@ function draw() {
 
       push();
       stroke(120);
-      strokeWeight(1);
-      drawingContext.setLineDash([4, 4]);
+      const interactionScale = getRenderedBlobScale();
+      strokeWeight(1 / interactionScale);
+      drawingContext.setLineDash([4 / interactionScale, 4 / interactionScale]);
 
-      if (pts.length >= 3 && dist(blobMouse.x, blobMouse.y, firstPt.x, firstPt.y) < 15 / blobTool.zoom) {
+      if (pts.length >= 3 && dist(blobMouse.x, blobMouse.y, firstPt.x, firstPt.y) < 15 / interactionScale) {
         stroke('#ff3333');
-        strokeWeight(2);
+        strokeWeight(2 / interactionScale);
         line(lastPt.x, lastPt.y, firstPt.x, firstPt.y);
       } else {
         line(lastPt.x, lastPt.y, blobMouse.x, blobMouse.y);
@@ -955,9 +869,6 @@ function draw() {
   }
 
   pop();
-  if (!blobTool.showTerrain) {
-    drawScaleBar();
-  }
   pop();
   updateTotalRectCount();
 }
@@ -990,13 +901,19 @@ function toggleCellAtPoint(x, y) {
   return false;
 }
 
-function mousePressed() {
+function mousePressed(event) {
   if (mouseX < 0 || mouseY < 0 || mouseX > width || mouseY > height) return;
+
+  if (isMiddlePointer(event)) {
+    viewportDragInfo = { x: mouseX, y: mouseY };
+    return false;
+  }
+
   const sceneMouse = getScenePoint(mouseX, mouseY);
   const blobMouse = getBlobPoint(sceneMouse.x, sceneMouse.y);
 
   // 1. Check direct punt aangeklikt
-  const pointHit = getPointUnderMouse(blobMouse.x, blobMouse.y, 10 / blobTool.zoom);
+  const pointHit = getPointUnderMouse(blobMouse.x, blobMouse.y, 10 / getRenderedBlobScale());
   if (pointHit) {
     // Klik op startpunt van actieve blob -> Vorm sluiten & opslaan!
     if (pointHit.isActive && pointHit.index === 0 && blobTool.activeBlob.points.length >= 3) {
@@ -1013,11 +930,10 @@ function mousePressed() {
   }
 
   // 2. Check op een lijn geklikt -> Nieuw punt op die lijn toevoegen!
-  const edgeHit = getEdgeUnderMouse(blobMouse.x, blobMouse.y, 8 / blobTool.zoom);
+  const edgeHit = getEdgeUnderMouse(blobMouse.x, blobMouse.y, 8 / getRenderedBlobScale());
   if (edgeHit) {
     edgeHit.blob.points.splice(edgeHit.insertIndex, 0, edgeHit.point);
-    ensureBlobCells(edgeHit.blob);
-    edgeHit.blob.count = countCellsInBlob(edgeHit.blob);
+    updateBlobCellsAndCount(edgeHit.blob);
 
     // Pak het nieuw gemaakte punt meteen vast om te kunnen slepen
     draggedPointInfo = {
@@ -1030,12 +946,21 @@ function mousePressed() {
     return;
   }
 
+  const blobHit = getBlobUnderMouse(blobMouse.x, blobMouse.y);
+  if (blobHit && !blobTool.activeBlob) {
+    draggedBlobInfo = {
+      blob: blobHit,
+      x: blobMouse.x,
+      y: blobMouse.y,
+    };
+    return;
+  }
+
   // 3. Klik in lege ruimte
   if (blobTool.activeBlob) {
     // Voeg nieuw hoekpunt toe aan de huidige vorm
     blobTool.activeBlob.points.push({ x: blobMouse.x, y: blobMouse.y });
-    ensureBlobCells(blobTool.activeBlob);
-    blobTool.activeBlob.count = countCellsInBlob(blobTool.activeBlob);
+    updateBlobCellsAndCount(blobTool.activeBlob);
   } else {
     // Start een splinternieuwe vector blob
     blobTool.activeBlob = {
@@ -1046,32 +971,64 @@ function mousePressed() {
   }
 }
 
-function mouseDragged() {
+function mouseDragged(event) {
+  if (viewportDragInfo && isMiddlePointer(event)) {
+    blobTool.viewportX += mouseX - viewportDragInfo.x;
+    blobTool.viewportY += mouseY - viewportDragInfo.y;
+    viewportDragInfo = { x: mouseX, y: mouseY };
+    syncSceneLayer();
+    return false;
+  }
+
   if (draggedPointInfo) {
     const sceneMouse = getScenePoint(mouseX, mouseY);
     const blobMouse = getBlobPoint(sceneMouse.x, sceneMouse.y);
     draggedPointInfo.point.x = blobMouse.x;
     draggedPointInfo.point.y = blobMouse.y;
 
-    ensureBlobCells(draggedPointInfo.blob);
-    draggedPointInfo.blob.count = countCellsInBlob(draggedPointInfo.blob);
+    updateBlobCellsAndCount(draggedPointInfo.blob);
+    updateTotalRectCount();
+    return;
+  }
+
+  if (draggedBlobInfo) {
+    const sceneMouse = getScenePoint(mouseX, mouseY);
+    const blobMouse = getBlobPoint(sceneMouse.x, sceneMouse.y);
+    const deltaX = blobMouse.x - draggedBlobInfo.x;
+    const deltaY = blobMouse.y - draggedBlobInfo.y;
+
+    draggedBlobInfo.blob.points.forEach((point) => {
+      point.x += deltaX;
+      point.y += deltaY;
+    });
+    draggedBlobInfo.x = blobMouse.x;
+    draggedBlobInfo.y = blobMouse.y;
+    updateBlobCellsAndCount(draggedBlobInfo.blob);
     updateTotalRectCount();
   }
 }
 
 function mouseReleased() {
   draggedPointInfo = null;
+  draggedBlobInfo = null;
+  viewportDragInfo = null;
+}
+
+function mouseWheel(event) {
+  if (mouseX < 0 || mouseY < 0 || mouseX > width || mouseY > height) return;
+  const zoomFactor = event.delta > 0 ? 0.9 : 1.1;
+  setZoomAroundPoint(blobTool.zoom * zoomFactor, mouseX, mouseY);
+  return false;
 }
 
 // Extra: Dubbelklik op een punt om het te verwijderen
 function doubleClicked() {
   const sceneMouse = getScenePoint(mouseX, mouseY);
   const blobMouse = getBlobPoint(sceneMouse.x, sceneMouse.y);
-  const hit = getPointUnderMouse(blobMouse.x, blobMouse.y, 10 / blobTool.zoom);
+  const hit = getPointUnderMouse(blobMouse.x, blobMouse.y, 10 / getRenderedBlobScale());
   if (hit && hit.blob.points.length > 3) {
     hit.blob.points.splice(hit.index, 1);
-    ensureBlobCells(hit.blob);
-    hit.blob.count = countCellsInBlob(hit.blob);
+    updateBlobCellsAndCount(hit.blob);
     updateTotalRectCount();
   }
 }
@@ -1086,8 +1043,7 @@ function keyPressed(e) {
       if (blobTool.activeBlob.points.length === 0) {
         blobTool.activeBlob = null;
       } else {
-        ensureBlobCells(blobTool.activeBlob);
-        blobTool.activeBlob.count = countCellsInBlob(blobTool.activeBlob);
+        updateBlobCellsAndCount(blobTool.activeBlob);
       }
     } else {
       // 2. Geen actieve blob -> Maak de laatst voltooide blob ongedaan
