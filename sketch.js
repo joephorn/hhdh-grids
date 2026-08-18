@@ -214,7 +214,7 @@ function drawScaleBar() {
   fill(0);
   text(label, x + meterPx / 2, y - 12);
   textAlign(LEFT, CENTER);
-  text('1 cell = 60 × 40 cm', endX + 12, y + 2);
+  text('1 Vierkant = 60 × 40 cm', endX + 12, y + 2);
   fill(255);
 }
 
@@ -257,7 +257,7 @@ function drawBlob(blob, forceOutline = false, usedCellKeys = null) {
     noStroke();
     fill(0);
     textAlign(CENTER, CENTER);
-    textSize(16); // Grotere tekst
+    textSize(16); // Grotere tekst`
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
     text(blob.count, centerX, centerY);
