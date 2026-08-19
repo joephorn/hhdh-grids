@@ -38,7 +38,24 @@ const CANVAS_DEFAULTS = {
   height: 750,
 };
 
-const INTERNAL_CELL_PADDING = 0.3;
+const INTERNAL_CELL_PADDING = 0;
+const ALTERNATE_CELL_DARKENING = 0.24;
+
+function darkenHexColor(hex, amount = ALTERNATE_CELL_DARKENING) {
+  const value = hex.replace('#', '');
+  const normalized = value.length === 3
+    ? value.split('').map((character) => character + character).join('')
+    : value;
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) return hex;
+
+  const factor = 1 - amount;
+  const channels = [0, 2, 4].map((offset) => (
+    Math.round(parseInt(normalized.slice(offset, offset + 2), 16) * factor)
+      .toString(16)
+      .padStart(2, '0')
+  ));
+  return `#${channels.join('')}`;
+}
 
 // -----------------------------------------------------------------------------
 // Coordinate systems and transforms
@@ -357,7 +374,7 @@ function getBlobCellRects(blob, usedCellKeys = null) {
 
   const rects = [];
   const keys = usedCellKeys || new Set();
-  const { cellW, cellH, stepX, stepY } = getGridMetrics(blob);
+  const { cellW, cellH, stepX, stepY, originX, originY } = getGridMetrics(blob);
   const { startX, startY, endX, endY } = getGridBounds(getBlobBounds(blob), blob);
 
   for (let x = startX; x <= endX; x += stepX) {
@@ -370,7 +387,9 @@ function getBlobCellRects(blob, usedCellKeys = null) {
       if (!pointInPolygon(px, py, blob.points)) continue;
       if (blob.cells && blob.cells[key] === false) continue;
 
-      rects.push({ key, x, y, width: cellW, height: cellH });
+      const column = Math.round((x - originX) / stepX);
+      const row = Math.round((y - originY) / stepY);
+      rects.push({ key, x, y, width: cellW, height: cellH, alternate: (column + row) % 2 !== 0 });
       keys.add(key);
     }
   }
@@ -450,10 +469,9 @@ function drawBlob(blob, forceOutline = false, usedCellKeys = null, options = {})
   const bounds = getBlobBounds(blob);
   if (drawCells) {
     const cellsToDraw = getBlobCellRects(blob, usedCellKeys);
-    fillColor.setAlpha(255);
     noStroke();
-    fill(fillColor);
     cellsToDraw.forEach((cell) => {
+      fill(cell.alternate ? lerpColor(fillColor, color(0), ALTERNATE_CELL_DARKENING) : fillColor);
       rect(cell.x, cell.y, cell.width, cell.height);
     });
   }
@@ -634,13 +652,15 @@ async function buildFullCanvasSvg() {
   }
 
   const foregroundColor = document.getElementById('fg')?.value || '#2ca06a';
+  const alternateColor = darkenHexColor(foregroundColor);
   const usedCellKeys = new Set();
   let cellsSvg = '';
   let guidesSvg = '';
   blobTool.blobs.forEach((blob) => {
     if (!blob?.points || blob.points.length < 3) return;
     getBlobCellRects(blob, usedCellKeys).forEach((cell) => {
-      cellsSvg += `<rect x="${cell.x}" y="${cell.y}" width="${cell.width}" height="${cell.height}" fill="${foregroundColor}" />`;
+      const cellColor = cell.alternate ? alternateColor : foregroundColor;
+      cellsSvg += `<rect x="${cell.x}" y="${cell.y}" width="${cell.width}" height="${cell.height}" fill="${cellColor}" />`;
     });
     if (!blobTool.showBlobGuides) return;
     const points = blob.points.map((point) => `${point.x},${point.y}`).join(' ');
